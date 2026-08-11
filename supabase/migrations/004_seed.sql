@@ -1,0 +1,29 @@
+-- 004_seed.sql - Default seed data
+--
+-- HOW TO CREATE AN ADMIN ACCOUNT:
+-- 1. Create a user via Supabase Auth (Dashboard > Authentication > Users > Add user)
+-- 2. Copy the user's UUID from the Auth dashboard
+-- 3. Insert a tenant if you haven't already:
+--      INSERT INTO tenants (id, name, email) VALUES ('YOUR_TENANT_UUID', 'Vraizen Tech', 'hello@vraizen.com');
+-- 4. Insert the admin profile:
+--      INSERT INTO profiles (id, tenant_id, email, full_name, role)
+--      VALUES ('AUTH_USER_UUID', 'YOUR_TENANT_UUID', 'admin@vraizen.com', 'Admin Name', 'admin');
+--
+-- After that, the admin can manage everything through the app.
+
+-- Default services (replace YOUR_TENANT_UUID with your actual tenant id)
+-- Example:
+--   DO $$
+--   DECLARE t_id uuid := 'YOUR_TENANT_UUID';
+--   BEGIN
+--     INSERT INTO services (tenant_id, name) VALUES
+--       (t_id, 'Website'),
+--       (t_id, 'E-commerce'),
+--       (t_id, 'Website Maintenance'),
+--       (t_id, 'SEO'),
+--       (t_id, 'Meta Ads'),
+--       (t_id, 'Google Ads'),
+--       (t_id, 'AI Chatbot'),
+--       (t_id, 'AI Automation'),
+--       (t_id, 'Other');
+--   END $$;
