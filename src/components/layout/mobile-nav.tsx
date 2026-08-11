@@ -6,6 +6,7 @@ import { X, LayoutDashboard, Users, Briefcase, FolderKanban, CheckSquare, Receip
 import { useAuth } from '@/lib/auth/auth-context'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { BrandLogo } from '@/components/shared/brand-logo'
 
 const adminLinks = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -49,7 +50,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="fixed inset-y-0 left-0 w-72 bg-slate-900 text-white p-4">
         <div className="flex items-center justify-between mb-6">
-          <span className="text-xl font-bold">Vraizen Tech</span>
+          <BrandLogo href="/" onClick={onClose} imageClassName="h-8 brightness-0 invert" />
           <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-slate-800">
             <X className="h-5 w-5" />
           </Button>

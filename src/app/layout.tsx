@@ -12,6 +12,9 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'Vraizen CRM',
   description: 'CRM & ERP platform by Vraizen Tech',
+  icons: {
+    icon: '/vraizen-logo.png',
+  },
 }
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

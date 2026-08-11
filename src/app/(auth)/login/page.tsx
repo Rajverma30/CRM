@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { BrandLogo } from '@/components/shared/brand-logo'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -10,32 +11,35 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     setIsLoading(true)
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
 
-    if (error) {
-      setError(error.message)
+      if (error) {
+        setError(error.message)
+        setIsLoading(false)
+        return
+      }
+
+      router.push('/')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to connect to Supabase')
       setIsLoading(false)
-      return
     }
-
-    router.push('/')
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-8">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">
-            Vraizen Tech
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+        <div className="flex flex-col items-center text-center">
+          <BrandLogo href={undefined} priority imageClassName="h-12" />
+          <p className="mt-4 text-sm text-muted-foreground">
             Sign in to your CRM account
           </p>
         </div>

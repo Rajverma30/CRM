@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth/auth-context'
 import { cn } from '@/lib/utils'
+import { BrandLogo } from '@/components/shared/brand-logo'
 
 const adminLinks = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -42,8 +43,8 @@ export function Sidebar() {
 
   return (
     <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 bg-slate-900 text-white">
-      <div className="flex h-16 items-center px-6 border-b border-slate-800">
-        <span className="text-xl font-bold tracking-tight">Vraizen Tech</span>
+      <div className="flex h-16 items-center px-4 border-b border-slate-800">
+        <BrandLogo href="/" imageClassName="h-8 brightness-0 invert" />
       </div>
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
         {links.map(link => {
