@@ -43,8 +43,8 @@ export function Sidebar() {
 
   return (
     <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 bg-slate-900 text-white">
-      <div className="flex h-16 items-center px-4 border-b border-slate-800">
-        <BrandLogo href="/" imageClassName="h-8 brightness-0 invert" />
+      <div className="flex h-56 items-center justify-center px-4 border-b border-slate-800">
+        <BrandLogo href="/" imageClassName="h-48" />
       </div>
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
         {links.map(link => {

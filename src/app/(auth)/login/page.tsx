@@ -38,7 +38,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-8">
         <div className="flex flex-col items-center text-center">
-          <BrandLogo href={undefined} priority imageClassName="h-12" />
+          <BrandLogo href={undefined} priority imageClassName="h-36" />
           <p className="mt-4 text-sm text-muted-foreground">
             Sign in to your CRM account
           </p>

@@ -1,4 +1,3 @@
-import Image from 'next/image'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
@@ -14,17 +13,13 @@ export function BrandLogo({
   href = '/',
   className,
   imageClassName,
-  priority = false,
   onClick,
 }: BrandLogoProps) {
   const image = (
-    <Image
+    <img
       src="/vraizen-logo.png"
       alt="Vraizen Tech"
-      width={160}
-      height={48}
-      priority={priority}
-      className={cn('h-9 w-auto object-contain', imageClassName)}
+      className={cn('h-20 w-auto object-contain', imageClassName)}
     />
   )
 
