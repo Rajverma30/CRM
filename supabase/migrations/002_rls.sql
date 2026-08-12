@@ -14,6 +14,13 @@ RETURNS user_role AS $$
   SELECT role FROM profiles WHERE id = auth.uid();
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
+-- Prevent infinite recursion during RLS policy evaluation.
+-- These helper functions read from `profiles`, which has RLS policies
+-- that call back into these helpers. Disabling row security for the
+-- helper functions breaks the cycle.
+ALTER FUNCTION get_user_tenant() SET row_security = off;
+ALTER FUNCTION get_user_role() SET row_security = off;
+
 -- ============================================================
 -- ENABLE RLS
 -- ============================================================
