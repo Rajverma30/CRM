@@ -22,6 +22,33 @@ ALTER FUNCTION get_user_tenant() SET row_security = off;
 ALTER FUNCTION get_user_role() SET row_security = off;
 
 -- ============================================================
+-- RLS cycle breaker helpers
+-- ============================================================
+-- The policies below reference each other via EXISTS subqueries:
+--   projects_select -> project_members (SELECT)
+--   project_members_select -> projects (SELECT)
+-- This can cause "infinite recursion detected in policy" in Postgres.
+-- We avoid the cycle by centralizing membership checks in SECURITY DEFINER
+-- functions with row-level security disabled for the function body.
+
+CREATE OR REPLACE FUNCTION user_can_see_project_member(p_project_id uuid)
+RETURNS boolean AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM project_members pm
+    JOIN projects p ON p.id = pm.project_id
+    WHERE pm.project_id = p_project_id
+      AND p.tenant_id = get_user_tenant()
+      AND (
+        get_user_role() = 'admin'
+        OR pm.profile_id = auth.uid()
+      )
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+ALTER FUNCTION user_can_see_project_member(uuid) SET row_security = off;
+
+-- ============================================================
 -- ENABLE RLS
 -- ============================================================
 
@@ -134,7 +161,7 @@ CREATE POLICY client_services_delete ON client_services FOR DELETE USING (
 CREATE POLICY projects_select ON projects FOR SELECT USING (
   tenant_id = get_user_tenant() AND (
     get_user_role() = 'admin'
-    OR EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = id AND pm.profile_id = auth.uid())
+    OR user_can_see_project_member(id)
   )
 );
 
@@ -155,8 +182,7 @@ CREATE POLICY projects_delete ON projects FOR DELETE USING (
 -- ============================================================
 
 CREATE POLICY project_members_select ON project_members FOR SELECT USING (
-  EXISTS (SELECT 1 FROM projects p WHERE p.id = project_id AND p.tenant_id = get_user_tenant())
-  AND (get_user_role() = 'admin' OR profile_id = auth.uid())
+  user_can_see_project_member(project_id)
 );
 
 CREATE POLICY project_members_insert ON project_members FOR INSERT WITH CHECK (
