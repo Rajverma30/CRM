@@ -32,7 +32,7 @@ export function useProjects(filters?: ProjectFilters) {
 
   return useQuery({
     queryKey: ['projects', profile?.tenant_id, filters],
-    queryFn: async () => {
+    queryFn: async (): Promise<ProjectWithClient[]> => {
       let query = supabase
         .from('projects')
         .select('*, clients(id, business_name)')
@@ -49,28 +49,26 @@ export function useProjects(filters?: ProjectFilters) {
       const { data, error } = await query
       if (error) throw error
 
-      const projects = (data || []) as unknown as ProjectWithClient[]
-      const ids = projects.map(p => p.id)
-      let memberCounts: Record<string, number> = {}
+      // Database types omit FK Relationships, so nested selects are untyped — cast via any
+      const rows = (data ?? []) as any[]
+      const ids = rows.map((p) => p.id as string)
+      const memberCounts: Record<string, number> = {}
 
       if (ids.length) {
         const { data: members } = await supabase
           .from('project_members')
           .select('project_id')
           .in('project_id', ids)
-        if (members) {
-          memberCounts = members.reduce<Record<string, number>>((acc, m) => {
-            acc[(m as { project_id: string }).project_id] =
-              (acc[(m as { project_id: string }).project_id] || 0) + 1
-            return acc
-          }, {})
+        for (const m of (members ?? []) as { project_id: string }[]) {
+          memberCounts[m.project_id] = (memberCounts[m.project_id] || 0) + 1
         }
       }
 
-      return projects.map(p => ({
-        ...p,
-        member_count: memberCounts[p.id] ?? 0,
-      })) as ProjectWithClient[]
+      return rows.map((p) => ({
+        ...(p as Project),
+        clients: (p.clients as ProjectWithClient['clients']) ?? null,
+        member_count: memberCounts[p.id as string] ?? 0,
+      }))
     },
     enabled: !!profile?.tenant_id,
   })

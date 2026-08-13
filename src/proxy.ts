@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { isAdminRoute } from '@/lib/auth/route-access'
 import { getSupabaseClientConfig } from '@/lib/supabase/env'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { url, anonKey } = getSupabaseClientConfig()
   let supabaseResponse = NextResponse.next({ request })
 
