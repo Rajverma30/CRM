@@ -49,7 +49,7 @@ export function useProjects(filters?: ProjectFilters) {
       const { data, error } = await query
       if (error) throw error
 
-      const projects = (data || []) as ProjectWithClient[]
+      const projects = (data || []) as unknown as ProjectWithClient[]
       const ids = projects.map(p => p.id)
       let memberCounts: Record<string, number> = {}
 
@@ -60,7 +60,8 @@ export function useProjects(filters?: ProjectFilters) {
           .in('project_id', ids)
         if (members) {
           memberCounts = members.reduce<Record<string, number>>((acc, m) => {
-            acc[m.project_id] = (acc[m.project_id] || 0) + 1
+            acc[(m as { project_id: string }).project_id] =
+              (acc[(m as { project_id: string }).project_id] || 0) + 1
             return acc
           }, {})
         }
@@ -69,7 +70,7 @@ export function useProjects(filters?: ProjectFilters) {
       return projects.map(p => ({
         ...p,
         member_count: memberCounts[p.id] ?? 0,
-      }))
+      })) as ProjectWithClient[]
     },
     enabled: !!profile?.tenant_id,
   })
