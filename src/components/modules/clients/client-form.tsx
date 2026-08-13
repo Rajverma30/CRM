@@ -1,21 +1,25 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { useCreateClient, useUpdateClient } from '@/lib/queries/use-clients'
-import { Client } from '@/lib/types/database'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
+import { useCreateClient, useUpdateClient, useServices, useClientServices } from '@/lib/queries/use-clients'
+import { Client, ClientStatus } from '@/lib/types/database'
+import { LoadingSpinner } from '@/components/shared/loading-spinner'
+
+const CLIENT_STATUSES: ClientStatus[] = ['lead', 'active', 'inactive', 'completed', 'lost']
 
 const EMPTY_FORM = {
   business_name: '',
-  contact_person: '',
   phone: '',
-  email: '',
-  website_url: '',
+  phone_2: '',
   address: '',
+  status: 'active' as string,
 }
 
 interface ClientFormProps {
@@ -28,27 +32,47 @@ export function ClientForm({ open, onOpenChange, client }: ClientFormProps) {
   const isEdit = !!client
   const createClient = useCreateClient()
   const updateClient = useUpdateClient()
+  const { data: services, isLoading: loadingServices } = useServices()
+  const { data: clientServices } = useClientServices(open && client ? client.id : undefined)
 
   const [form, setForm] = useState(EMPTY_FORM)
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([])
   const [error, setError] = useState('')
+  const servicesLoadedFor = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      servicesLoadedFor.current = null
+      return
+    }
 
     if (client) {
       setForm({
         business_name: client.business_name,
-        contact_person: client.contact_person ?? '',
         phone: client.phone ?? '',
-        email: client.email ?? '',
-        website_url: client.website_url ?? '',
+        phone_2: client.phone_2 ?? '',
         address: client.address ?? '',
+        status: client.status,
       })
     } else {
       setForm(EMPTY_FORM)
+      setSelectedServiceIds([])
     }
     setError('')
   }, [open, client?.id])
+
+  useEffect(() => {
+    if (!open || !client || !clientServices) return
+    if (servicesLoadedFor.current === client.id) return
+    servicesLoadedFor.current = client.id
+    setSelectedServiceIds(clientServices.map(cs => cs.service_id))
+  }, [open, client?.id, clientServices])
+
+  function toggleService(serviceId: string) {
+    setSelectedServiceIds(prev =>
+      prev.includes(serviceId) ? prev.filter(id => id !== serviceId) : [...prev, serviceId]
+    )
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -60,12 +84,11 @@ export function ClientForm({ open, onOpenChange, client }: ClientFormProps) {
 
     const payload = {
       business_name: form.business_name.trim(),
-      contact_person: form.contact_person.trim() || undefined,
       phone: form.phone.trim() || undefined,
-      email: form.email.trim() || undefined,
-      website_url: form.website_url.trim() || undefined,
+      phone_2: form.phone_2.trim() || undefined,
       address: form.address.trim() || undefined,
-      status: isEdit ? client.status : 'lead',
+      status: form.status,
+      service_ids: selectedServiceIds,
     }
 
     try {
@@ -95,23 +118,37 @@ export function ClientForm({ open, onOpenChange, client }: ClientFormProps) {
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && <p className="text-sm text-destructive">{error}</p>}
 
+          <div className="space-y-2">
+            <Label htmlFor="business_name">Business Name *</Label>
+            <Input
+              id="business_name"
+              value={form.business_name}
+              onChange={e => setForm(f => ({ ...f, business_name: e.target.value }))}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Service Needed</Label>
+            {loadingServices ? (
+              <LoadingSpinner size={20} className="py-2" />
+            ) : services?.length ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-md border p-3">
+                {services.map(service => (
+                  <label key={service.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={selectedServiceIds.includes(service.id)}
+                      onCheckedChange={() => toggleService(service.id)}
+                    />
+                    {service.name}
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No services configured yet.</p>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="business_name">Business Name *</Label>
-              <Input
-                id="business_name"
-                value={form.business_name}
-                onChange={e => setForm(f => ({ ...f, business_name: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="contact_person">Contact Person</Label>
-              <Input
-                id="contact_person"
-                value={form.contact_person}
-                onChange={e => setForm(f => ({ ...f, contact_person: e.target.value }))}
-              />
-            </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Phone</Label>
               <Input
@@ -121,21 +158,11 @@ export function ClientForm({ open, onOpenChange, client }: ClientFormProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="phone_2">Second Phone (optional)</Label>
               <Input
-                id="email"
-                type="email"
-                value={form.email}
-                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="website_url">Website URL</Label>
-              <Input
-                id="website_url"
-                placeholder="https://"
-                value={form.website_url}
-                onChange={e => setForm(f => ({ ...f, website_url: e.target.value }))}
+                id="phone_2"
+                value={form.phone_2}
+                onChange={e => setForm(f => ({ ...f, phone_2: e.target.value }))}
               />
             </div>
           </div>
@@ -148,6 +175,22 @@ export function ClientForm({ open, onOpenChange, client }: ClientFormProps) {
               onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
               rows={2}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CLIENT_STATUSES.map(s => (
+                  <SelectItem key={s} value={s} className="capitalize">
+                    {s.replace(/_/g, ' ')}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <DialogFooter>

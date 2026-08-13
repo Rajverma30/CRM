@@ -328,6 +328,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
                 } />
                 <InfoRow icon={Mail} label="Email" value={client.email} />
                 <InfoRow icon={Phone} label="Phone" value={client.phone} />
+                <InfoRow icon={Phone} label="Second Phone" value={client.phone_2} />
                 <InfoRow icon={MapPin} label="Address" value={client.address} />
                 <InfoRow icon={Layers} label="Industry" value={client.industry} />
                 <InfoRow icon={Globe} label="Website" value={client.website_url} />

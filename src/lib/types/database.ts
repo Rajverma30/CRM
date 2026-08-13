@@ -62,6 +62,7 @@ export interface ClientRow {
   contact_person: string | null;
   contact_position: string | null;
   phone: string | null;
+  phone_2: string | null;
   email: string | null;
   address: string | null;
   industry: string | null;
@@ -154,6 +155,14 @@ export interface LeadRow {
   email: string | null;
   industry: string | null;
   website: string | null;
+  address: string | null;
+  rating: number | null;
+  reviews: number | null;
+  google_maps_url: string | null;
+  place_id: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  lead_score: number | null;
   source: LeadSource;
   interested_service: string | null;
   estimated_budget: number | null;

@@ -234,7 +234,7 @@ export default function ProjectDetailPage() {
                 {project.project_members?.length ? (
                   <div className="space-y-3">
                     {project.project_members.map(m => (
-                      <div key={m.id} className="flex items-center gap-3">
+                      <div key={m.profile_id} className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
                           <AvatarImage src={m.profiles.avatar_url ?? undefined} />
                           <AvatarFallback className="text-xs">{getInitials(m.profiles.full_name)}</AvatarFallback>
@@ -305,7 +305,7 @@ export default function ProjectDetailPage() {
           {project.project_members?.length ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {project.project_members.map(m => (
-                <Card key={m.id}>
+                <Card key={m.profile_id}>
                   <CardContent className="flex items-center gap-3 p-4">
                     <Avatar className="h-10 w-10">
                       <AvatarImage src={m.profiles.avatar_url ?? undefined} />

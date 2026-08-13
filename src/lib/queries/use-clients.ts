@@ -100,6 +100,7 @@ interface CreateClientData {
   contact_person?: string
   contact_position?: string
   phone?: string
+  phone_2?: string
   email?: string
   address?: string
   industry?: string
@@ -111,26 +112,18 @@ interface CreateClientData {
 
 export function useCreateClient() {
   const queryClient = useQueryClient()
-  const supabase = createClient()
-  const { profile } = useAuth()
 
   return useMutation({
-    mutationFn: async ({ service_ids, ...data }: CreateClientData) => {
-      const { data: client, error } = await supabase
-        .from('clients')
-        .insert({ ...data, tenant_id: profile!.tenant_id } as any)
-        .select()
-        .single()
-      if (error) throw error
-
-      if (service_ids?.length) {
-        const { error: svcError } = await supabase
-          .from('client_services')
-          .insert(service_ids.map(sid => ({ client_id: client.id, service_id: sid })))
-        if (svcError) throw svcError
-      }
-
-      return client as Client
+    mutationFn: async (data: CreateClientData) => {
+      // Use API route (service role) to avoid broken RLS recursion on project_members
+      const res = await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to create client')
+      return json as Client
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
@@ -148,6 +141,7 @@ interface UpdateClientData {
   contact_person?: string | null
   contact_position?: string | null
   phone?: string | null
+  phone_2?: string | null
   email?: string | null
   address?: string | null
   industry?: string | null
@@ -163,13 +157,42 @@ export function useUpdateClient() {
 
   return useMutation({
     mutationFn: async ({ id, service_ids, ...data }: UpdateClientData) => {
-      const { data: updated, error } = await supabase
-        .from('clients')
-        .update(data as any)
-        .eq('id', id)
-        .select()
-        .single()
+      const { phone_2, ...rest } = data
+      let updated: Client | null = null
+      let error: { message: string } | null = null
+
+      if (phone_2 !== undefined) {
+        const first = await supabase
+          .from('clients')
+          .update({ ...rest, phone_2 } as any)
+          .eq('id', id)
+          .select()
+          .single()
+        updated = first.data as Client | null
+        error = first.error
+        if (error && /phone_2/i.test(error.message)) {
+          const fallback = await supabase
+            .from('clients')
+            .update(rest as any)
+            .eq('id', id)
+            .select()
+            .single()
+          updated = fallback.data as Client | null
+          error = fallback.error
+        }
+      } else {
+        const result = await supabase
+          .from('clients')
+          .update(rest as any)
+          .eq('id', id)
+          .select()
+          .single()
+        updated = result.data as Client | null
+        error = result.error
+      }
+
       if (error) throw error
+      if (!updated) throw new Error('Failed to update client')
 
       if (service_ids !== undefined) {
         await supabase.from('client_services').delete().eq('client_id', id)

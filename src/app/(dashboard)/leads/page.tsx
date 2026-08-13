@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, LayoutGrid, Table2, MoreHorizontal, Eye, Pencil, Trash2, Target } from 'lucide-react'
+import { Plus, LayoutGrid, Table2, MoreHorizontal, Eye, Pencil, Trash2, Target, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { DataTable, Column } from '@/components/shared/data-table'
 import { KanbanBoard, KanbanColumn } from '@/components/shared/kanban-board'
@@ -23,6 +23,7 @@ import { useEmployees } from '@/lib/queries/use-employees'
 import { LeadStatus, LeadSource } from '@/lib/types/database'
 import { formatDate, formatCurrency, capitalize, getInitials } from '@/lib/utils'
 import { LeadForm } from '@/components/modules/leads/lead-form'
+import { LeadImportDialog } from '@/components/modules/leads/lead-import-dialog'
 
 const KANBAN_COLUMNS: KanbanColumn[] = [
   { id: 'new', title: 'New', color: '#3b82f6' },
@@ -45,6 +46,7 @@ export default function LeadsPage() {
   const [sourceFilter, setSourceFilter] = useState('all')
   const [assignedFilter, setAssignedFilter] = useState('all')
   const [formOpen, setFormOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [editLead, setEditLead] = useState<LeadWithAssignee | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
@@ -137,9 +139,14 @@ export default function LeadsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Leads Pipeline" description="Manage and track your sales leads.">
-        <Button onClick={() => { setEditLead(null); setFormOpen(true) }}>
-          <Plus className="mr-2 h-4 w-4" /> Add Lead
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" /> Upload Excel
+          </Button>
+          <Button onClick={() => { setEditLead(null); setFormOpen(true) }}>
+            <Plus className="mr-2 h-4 w-4" /> Add Lead
+          </Button>
+        </div>
       </PageHeader>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -248,6 +255,8 @@ export default function LeadsPage() {
         onOpenChange={setFormOpen}
         lead={editLead}
       />
+
+      <LeadImportDialog open={importOpen} onOpenChange={setImportOpen} />
 
       <ConfirmDialog
         open={!!deleteId}

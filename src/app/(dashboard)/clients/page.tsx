@@ -53,9 +53,6 @@ export default function ClientsPage() {
       render: (row) => (
         <div>
           <span>{row.contact_person ?? '—'}</span>
-          {row.contact_position && (
-            <p className="text-xs text-muted-foreground">{row.contact_position}</p>
-          )}
         </div>
       ),
     },

@@ -100,6 +100,40 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             )}
           </div>
           <div>
+            <p className="text-sm text-muted-foreground">Address</p>
+            <p className="font-medium">{lead.address ?? '—'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Rating</p>
+            <p className="font-medium">{lead.rating != null ? `${lead.rating} (${lead.reviews ?? 0} reviews)` : '—'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Lead Score</p>
+            <p className="font-medium">{lead.lead_score ?? '—'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Google Maps</p>
+            {lead.google_maps_url ? (
+              <a href={lead.google_maps_url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                Open map
+              </a>
+            ) : (
+              <p className="font-medium">—</p>
+            )}
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Place ID</p>
+            <p className="font-medium break-all text-xs">{lead.place_id ?? '—'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Coordinates</p>
+            <p className="font-medium">
+              {lead.latitude != null && lead.longitude != null
+                ? `${lead.latitude}, ${lead.longitude}`
+                : '—'}
+            </p>
+          </div>
+          <div>
             <p className="text-sm text-muted-foreground">Interested Service</p>
             <p className="font-medium">{lead.interested_service ?? '—'}</p>
           </div>

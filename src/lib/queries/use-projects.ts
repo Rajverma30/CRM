@@ -19,7 +19,8 @@ export interface ProjectWithClient extends Project {
 export interface ProjectDetail extends Project {
   clients: { id: string; business_name: string } | null
   project_members: {
-    id: string
+    id?: string
+    project_id?: string
     profile_id: string
     profiles: { id: string; full_name: string; avatar_url: string | null; role: string }
   }[]
@@ -34,7 +35,7 @@ export function useProjects(filters?: ProjectFilters) {
     queryFn: async () => {
       let query = supabase
         .from('projects')
-        .select('*, clients(id, business_name), project_members(id)')
+        .select('*, clients(id, business_name)')
         .eq('tenant_id', profile!.tenant_id)
         .order('created_at', { ascending: false })
 
@@ -48,11 +49,27 @@ export function useProjects(filters?: ProjectFilters) {
       const { data, error } = await query
       if (error) throw error
 
-      return (data as unknown as (ProjectWithClient & { project_members: { id: string }[] })[]).map(p => ({
+      const projects = (data || []) as ProjectWithClient[]
+      const ids = projects.map(p => p.id)
+      let memberCounts: Record<string, number> = {}
+
+      if (ids.length) {
+        const { data: members } = await supabase
+          .from('project_members')
+          .select('project_id')
+          .in('project_id', ids)
+        if (members) {
+          memberCounts = members.reduce<Record<string, number>>((acc, m) => {
+            acc[m.project_id] = (acc[m.project_id] || 0) + 1
+            return acc
+          }, {})
+        }
+      }
+
+      return projects.map(p => ({
         ...p,
-        member_count: p.project_members?.length ?? 0,
-        project_members: undefined,
-      })) as ProjectWithClient[]
+        member_count: memberCounts[p.id] ?? 0,
+      }))
     },
     enabled: !!profile?.tenant_id,
   })
@@ -66,7 +83,7 @@ export function useProject(id: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('projects')
-        .select('*, clients(id, business_name), project_members(id, profile_id, profiles(id, full_name, avatar_url, role))')
+        .select('*, clients(id, business_name), project_members(project_id, profile_id, profiles(id, full_name, avatar_url, role))')
         .eq('id', id!)
         .single()
       if (error) throw error
