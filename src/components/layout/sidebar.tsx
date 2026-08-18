@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, Briefcase, FolderKanban, CheckSquare,
-  Receipt, FileText, UserCog, CalendarCheck, BarChart3, Settings, User,
+  Receipt, FileText, UserCog, CalendarCheck, BarChart3, Settings, User, ScanSearch,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth/auth-context'
 import { cn } from '@/lib/utils'
@@ -13,6 +13,7 @@ import { BrandLogo } from '@/components/shared/brand-logo'
 const adminLinks = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/leads', label: 'Leads', icon: Users },
+  { href: '/lead-finder', label: 'Lead Finder', icon: ScanSearch },
   { href: '/clients', label: 'Clients', icon: Briefcase },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/tasks', label: 'Tasks', icon: CheckSquare },

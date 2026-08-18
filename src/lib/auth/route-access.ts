@@ -1,6 +1,7 @@
 /** Routes only accessible to admin users */
 export const ADMIN_ROUTE_PREFIXES = [
   '/leads',
+  '/lead-finder',
   '/clients',
   '/projects',
   '/billing',
