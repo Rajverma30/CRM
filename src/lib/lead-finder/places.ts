@@ -82,23 +82,26 @@ export class PlacesService {
 
   private async collectFiltered(request: SearchRequest): Promise<[BusinessLead[], number]> {
     const locations = parseLocations(request.location)
+    const businessTypes = this.splitBusinessTypes(request.business_type)
     const rawPlaces: PlaceRecord[] = []
     const locationErrors: PlacesAPIError[] = []
 
-    for (const loc of locations) {
-      try {
-        let center: [number, number] | null = null
-        if (request.deep_search) {
-          center = await this.tryGeocodeLocation(loc)
-        }
-        const batch = await this.fetchPlaces(request, loc, center)
-        rawPlaces.push(...batch)
-      } catch (exc) {
-        if (exc instanceof PlacesAPIError) {
-          locationErrors.push(exc)
-          if (exc.code === 'quota_exceeded' && rawPlaces.length) break
-        } else {
-          throw exc
+    for (const businessType of businessTypes) {
+      for (const loc of locations) {
+        try {
+          let center: [number, number] | null = null
+          if (request.deep_search) {
+            center = await this.tryGeocodeLocation(loc)
+          }
+          const batch = await this.fetchPlaces({ ...request, business_type: businessType }, loc, center)
+          rawPlaces.push(...batch)
+        } catch (exc) {
+          if (exc instanceof PlacesAPIError) {
+            locationErrors.push(exc)
+            if (exc.code === 'quota_exceeded' && rawPlaces.length) break
+          } else {
+            throw exc
+          }
         }
       }
     }
@@ -109,7 +112,7 @@ export class PlacesService {
 
     const deduped = this.deduplicate(rawPlaces)
     const leads = deduped.map(p => this.mapPlace(p))
-    let filtered = this.applyFilters(leads, request)
+    const filtered = this.applyFilters(leads, request)
 
     if (request.potential_web_dev_leads) {
       filtered.sort((a, b) => b.lead_score - a.lead_score)
@@ -126,6 +129,15 @@ export class PlacesService {
     }
 
     return [filtered, deduped.length]
+  }
+
+  private splitBusinessTypes(raw: string): string[] {
+    return [...new Set(
+      raw
+        .split(/[\n,;]+/)
+        .map(item => item.trim())
+        .filter(Boolean)
+    )]
   }
 
   private async tryGeocodeLocation(location: string): Promise<[number, number] | null> {

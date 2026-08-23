@@ -80,3 +80,20 @@ export async function downloadCachedExport(
 
   triggerDownload(blob, filename)
 }
+
+export async function saveBusinessesToLeads(businesses: BusinessLead[]): Promise<number> {
+  if (!businesses.length) {
+    throw new Error('No businesses to save.')
+  }
+
+  const response = await fetch('/api/lead-finder/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ businesses }),
+  })
+
+  if (!response.ok) throw new Error(await parseError(response))
+
+  const json = await response.json() as { saved: number }
+  return json.saved ?? businesses.length
+}

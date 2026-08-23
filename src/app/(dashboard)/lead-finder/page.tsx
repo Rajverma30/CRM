@@ -1,12 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { ScanSearch } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Card, CardContent } from '@/components/ui/card'
 import { useAuth } from '@/lib/auth/auth-context'
-import { searchBusinesses, downloadCachedExport } from '@/lib/lead-finder/client'
+import { searchBusinesses, downloadCachedExport, saveBusinessesToLeads } from '@/lib/lead-finder/client'
 import { loadCachedSearch, saveCachedSearch } from '@/lib/lead-finder/cache'
 import type { SearchFormState, SearchResponse } from '@/lib/lead-finder/types'
 import { LeadFinderSearchForm } from '@/components/modules/lead-finder/search-form'
@@ -31,20 +31,18 @@ const INITIAL_FORM: SearchFormState = {
 
 export default function LeadFinderPage() {
   const { isAdmin } = useAuth()
-  const [form, setForm] = useState<SearchFormState>(INITIAL_FORM)
-  const [result, setResult] = useState<SearchResponse | null>(null)
+  const cachedSearch = loadCachedSearch()
+  const [form, setForm] = useState<SearchFormState>(() => {
+    if (!cachedSearch) return INITIAL_FORM
+    return { ...INITIAL_FORM, ...cachedSearch.form, page: 1, page_size: 2000 }
+  })
+  const [result, setResult] = useState<SearchResponse | null>(() => cachedSearch?.result ?? null)
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState<'csv' | 'xlsx' | null>(null)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [hasSearched, setHasSearched] = useState(false)
-
-  useEffect(() => {
-    const cached = loadCachedSearch()
-    if (!cached) return
-    setForm({ ...INITIAL_FORM, ...cached.form, page: 1, page_size: 2000 })
-    setResult(cached.result)
-    setHasSearched(true)
-  }, [])
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [hasSearched, setHasSearched] = useState(Boolean(cachedSearch))
 
   const runSearch = useCallback(async (params: SearchFormState) => {
     setLoading(true)
@@ -79,6 +77,7 @@ export default function LeadFinderPage() {
     }
     setExporting(format)
     setError(null)
+    setSaveMessage(null)
     try {
       await downloadCachedExport(format, result.businesses, {
         business_type: result.query || form.business_type,
@@ -88,6 +87,26 @@ export default function LeadFinderPage() {
       setError(err instanceof Error ? err.message : 'Export failed.')
     } finally {
       setExporting(null)
+    }
+  }
+
+  const handleSaveToLeads = async () => {
+    if (!result || result.businesses.length === 0) {
+      setError('No results to save. Run a search first.')
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setSaveMessage(null)
+
+    try {
+      const saved = await saveBusinessesToLeads(result.businesses)
+      setSaveMessage(`${saved} businesses saved to CRM Leads.`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save leads.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -126,6 +145,12 @@ export default function LeadFinderPage() {
         </div>
       )}
 
+      {saveMessage && (
+        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700">
+          {saveMessage}
+        </div>
+      )}
+
       {result && !loading && (
         <section className="space-y-4">
           <Card>
@@ -145,7 +170,9 @@ export default function LeadFinderPage() {
               <LeadFinderExportButtons
                 disabled={result.total === 0}
                 exporting={exporting}
+                saving={saving}
                 onExport={handleExport}
+                onSave={handleSaveToLeads}
               />
             </CardContent>
           </Card>
