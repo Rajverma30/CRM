@@ -6,6 +6,30 @@ import type { BusinessLead } from '@/lib/lead-finder/types'
 
 const BATCH_SIZE = 100
 
+function normalizeValue(value: string | null | undefined) {
+  return value?.trim().toLowerCase().replace(/\s+/g, ' ') || ''
+}
+
+function getDuplicateKeys(payload: {
+  business_name: string
+  phone?: string | null
+  website?: string | null
+  place_id?: string | null
+}) {
+  const keys = new Set<string>()
+  const businessName = normalizeValue(payload.business_name)
+  const phone = normalizeValue(payload.phone)
+  const website = normalizeValue(payload.website)
+  const placeId = normalizeValue(payload.place_id)
+
+  if (placeId) keys.add(`place:${placeId}`)
+  if (businessName && phone) keys.add(`name-phone:${businessName}|${phone}`)
+  if (businessName && website) keys.add(`name-website:${businessName}|${website}`)
+  if (businessName && !phone && !website) keys.add(`name:${businessName}`)
+
+  return Array.from(keys)
+}
+
 function buildLeadPayload(business: BusinessLead, tenantId: string) {
   const trimmedName = business.name?.trim() || 'Unknown business'
   const trimmedPhone = business.phone || business.international_phone || null
@@ -66,6 +90,28 @@ export async function POST(request: NextRequest) {
     }
 
     const adminClient = createAdminClient()
+    const { data: existingLeads, error: existingError } = await adminClient
+      .from('leads')
+      .select('id, place_id, business_name, phone, website')
+      .eq('tenant_id', profile.tenant_id)
+
+    if (existingError) {
+      throw existingError
+    }
+
+    const existingKeys = new Set<string>()
+    for (const lead of existingLeads ?? []) {
+      for (const key of getDuplicateKeys({
+        business_name: lead.business_name,
+        phone: lead.phone,
+        website: lead.website,
+        place_id: lead.place_id,
+      })) {
+        existingKeys.add(key)
+      }
+    }
+
+    const seenKeys = new Set<string>()
     const normalized = businesses
       .filter(business => business?.name)
       .filter((business, index, list) => {
@@ -74,9 +120,15 @@ export async function POST(request: NextRequest) {
         return list.findIndex(item => (item.place_id || '').trim() === placeId) === index
       })
       .map(business => buildLeadPayload(business, profile.tenant_id))
+      .filter(payload => {
+        const duplicateKeys = getDuplicateKeys(payload)
+        const isDuplicate = duplicateKeys.some(key => existingKeys.has(key) || seenKeys.has(key))
+        duplicateKeys.forEach(key => seenKeys.add(key))
+        return !isDuplicate
+      })
 
     if (!normalized.length) {
-      return NextResponse.json({ saved: 0 })
+      return NextResponse.json({ saved: 0, skipped_duplicates: true })
     }
 
     let inserted = 0
@@ -97,7 +149,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ detail: { message: errors.join('; '), code: 'insert_failed' } }, { status: 500 })
     }
 
-    return NextResponse.json({ saved: inserted, total: normalized.length, errors: errors.length ? errors : undefined })
+    return NextResponse.json({
+      saved: inserted,
+      total: normalized.length,
+      errors: errors.length ? errors : undefined,
+      skipped_duplicates: true,
+    })
   } catch (error) {
     console.error('Lead finder save error:', error)
     return NextResponse.json({ detail: { message: 'An unexpected server error occurred.', code: 'internal_error' } }, { status: 500 })
