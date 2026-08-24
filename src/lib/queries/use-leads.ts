@@ -14,8 +14,8 @@ interface LeadFilters {
   status?: LeadStatus
   source?: LeadSource
   assigned_to?: string
-  category?: string
-  subcategory?: string
+  category?: string[]
+  subcategory?: string[]
 }
 
 const LEAD_SELECT = `
@@ -39,8 +39,8 @@ export function useLeads(filters?: LeadFilters) {
       if (filters?.status) query = query.eq('status', filters.status)
       if (filters?.source) query = query.eq('source', filters.source)
       if (filters?.assigned_to) query = query.eq('assigned_to', filters.assigned_to)
-      if (filters?.category) query = query.eq('category', filters.category)
-      if (filters?.subcategory) query = query.eq('subcategory', filters.subcategory)
+      if (filters?.category?.length) query = query.in('category', filters.category)
+      if (filters?.subcategory?.length) query = query.in('subcategory', filters.subcategory)
 
       const { data, error } = await query
       if (error) throw error

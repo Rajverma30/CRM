@@ -15,6 +15,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/lib/auth/auth-context'
@@ -24,7 +26,7 @@ import { LeadStatus, LeadSource } from '@/lib/types/database'
 import { formatDate, formatCurrency, capitalize, getInitials } from '@/lib/utils'
 import { LeadForm } from '@/components/modules/leads/lead-form'
 import { LeadImportDialog } from '@/components/modules/leads/lead-import-dialog'
-import { getLeadSubcategories, LEAD_CATEGORY_OPTIONS } from '@/lib/constants/lead-categories'
+import { getLeadSubcategories, LEAD_CATEGORIES, LEAD_CATEGORY_OPTIONS } from '@/lib/constants/lead-categories'
 
 const KANBAN_COLUMNS: KanbanColumn[] = [
   { id: 'new', title: 'New', color: '#3b82f6' },
@@ -39,6 +41,57 @@ const KANBAN_COLUMNS: KanbanColumn[] = [
 const STATUS_OPTIONS: LeadStatus[] = ['new', 'contacted', 'interested', 'proposal_sent', 'negotiation', 'won', 'lost']
 const SOURCE_OPTIONS: LeadSource[] = ['google_maps', 'instagram', 'referral', 'website', 'whatsapp', 'cold_call', 'other']
 
+function MultiSelectFilter({
+  label,
+  options,
+  selected,
+  onChange,
+  disabled = false,
+}: {
+  label: string
+  options: readonly string[]
+  selected: string[]
+  onChange: (values: string[]) => void
+  disabled?: boolean
+}) {
+  function toggle(value: string) {
+    onChange(selected.includes(value)
+      ? selected.filter(item => item !== value)
+      : [...selected, value])
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" disabled={disabled} className="w-[190px] justify-between font-normal">
+          <span className="truncate">
+            {selected.length ? `${label}: ${selected.length} selected` : `All ${label}s`}
+          </span>
+          <span className="ml-2 text-muted-foreground">▾</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[260px] p-2">
+        <div className="mb-2 flex items-center justify-between border-b pb-2">
+          <span className="text-sm font-medium">Select {label}</span>
+          {selected.length > 0 && (
+            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => onChange([])}>
+              Clear
+            </Button>
+          )}
+        </div>
+        <div className="max-h-64 space-y-1 overflow-y-auto">
+          {options.map(option => (
+            <label key={option} className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-2 text-sm hover:bg-muted">
+              <Checkbox checked={selected.includes(option)} onCheckedChange={() => toggle(option)} />
+              <span>{option}</span>
+            </label>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export default function LeadsPage() {
   const router = useRouter()
   const { isAdmin } = useAuth()
@@ -46,8 +99,8 @@ export default function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [sourceFilter, setSourceFilter] = useState('all')
   const [assignedFilter, setAssignedFilter] = useState('all')
-  const [categoryFilter, setCategoryFilter] = useState('all')
-  const [subcategoryFilter, setSubcategoryFilter] = useState('all')
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([])
+  const [subcategoryFilter, setSubcategoryFilter] = useState<string[]>([])
   const [formOpen, setFormOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [editLead, setEditLead] = useState<LeadWithAssignee | null>(null)
@@ -57,13 +110,13 @@ export default function LeadsPage() {
     status: statusFilter === 'all' ? undefined : statusFilter as LeadStatus,
     source: sourceFilter === 'all' ? undefined : sourceFilter as LeadSource,
     assigned_to: assignedFilter === 'all' ? undefined : assignedFilter,
-    category: categoryFilter === 'all' ? undefined : categoryFilter,
-    subcategory: subcategoryFilter === 'all' ? undefined : subcategoryFilter,
+    category: categoryFilter.length ? categoryFilter : undefined,
+    subcategory: subcategoryFilter.length ? subcategoryFilter : undefined,
   })
   const { data: employees = [] } = useEmployees({ is_active: true })
   const updateLead = useUpdateLead()
   const deleteLead = useDeleteLead()
-  const subcategories = getLeadSubcategories(categoryFilter === 'all' ? '' : categoryFilter)
+  const subcategories = [...new Set(categoryFilter.flatMap(category => getLeadSubcategories(category)))]
 
   function handleKanbanMove(itemId: string, newStatus: string) {
     updateLead.mutate({ id: itemId, status: newStatus as LeadStatus })
@@ -184,24 +237,24 @@ export default function LeadsPage() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={categoryFilter} onValueChange={value => { setCategoryFilter(value); setSubcategoryFilter('all') }}>
-            <SelectTrigger className="w-[170px]"><SelectValue placeholder="Category" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {LEAD_CATEGORY_OPTIONS.map(category => (
-                <SelectItem key={category} value={category}>{category}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={subcategoryFilter} onValueChange={setSubcategoryFilter} disabled={!subcategories.length}>
-            <SelectTrigger className="w-[190px]"><SelectValue placeholder="Subcategory" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Subcategories</SelectItem>
-              {subcategories.map(subcategory => (
-                <SelectItem key={subcategory} value={subcategory}>{subcategory}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelectFilter
+            label="Category"
+            options={LEAD_CATEGORY_OPTIONS}
+            selected={categoryFilter}
+            onChange={values => {
+              setCategoryFilter(values)
+              setSubcategoryFilter(current => current.filter(subcategory =>
+                values.some(category => (LEAD_CATEGORIES[category as keyof typeof LEAD_CATEGORIES] as readonly string[]).includes(subcategory))
+              ))
+            }}
+          />
+          <MultiSelectFilter
+            label="Subcategory"
+            options={subcategories}
+            selected={subcategoryFilter}
+            onChange={setSubcategoryFilter}
+            disabled={!subcategories.length}
+          />
         </div>
 
         <Tabs value={view} onValueChange={v => setView(v as 'kanban' | 'table')}>
