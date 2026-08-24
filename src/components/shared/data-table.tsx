@@ -43,7 +43,7 @@ export function DataTable<T extends Record<string, any>>({
   const [sortKey, setSortKey] = React.useState<string | null>(null)
   const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('asc')
   const [page, setPage] = React.useState(0)
-  const [perPage, setPerPage] = React.useState(10)
+  const [perPage, setPerPage] = React.useState(1000)
 
   const filtered = React.useMemo(() => {
     if (!search || !searchKey) return data
