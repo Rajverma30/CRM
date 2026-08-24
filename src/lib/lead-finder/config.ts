@@ -6,7 +6,7 @@ export function getLeadFinderConfig() {
     maxGridPoints: Number(process.env.LEAD_FINDER_MAX_GRID_POINTS ?? 5),
     searchRadiusMeters: Number(process.env.LEAD_FINDER_SEARCH_RADIUS ?? 8000),
     requestTimeoutMs: Number(process.env.LEAD_FINDER_REQUEST_TIMEOUT ?? 30000),
-    placesMaxConcurrency: Number(process.env.LEAD_FINDER_PLACES_CONCURRENCY ?? 1),
+    placesMaxConcurrency: Number(process.env.LEAD_FINDER_PLACES_CONCURRENCY ?? 3),
     placesRetryMax: Number(process.env.LEAD_FINDER_PLACES_RETRY ?? 3),
   }
 }

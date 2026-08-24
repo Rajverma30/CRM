@@ -6,6 +6,8 @@ import { PlacesAPIError, PlacesService } from '@/lib/lead-finder/places'
 import { checkRateLimit, clientIp, RateLimitError } from '@/lib/lead-finder/rate-limit'
 import type { SearchRequest } from '@/lib/lead-finder/types'
 
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
   const auth = await requireLeadFinderAdmin()
   if ('error' in auth && auth.error) return auth.error

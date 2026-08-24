@@ -43,6 +43,27 @@ function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let nextIndex = 0
+  const workerCount = Math.min(Math.max(1, concurrency), items.length)
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const index = nextIndex++
+        results[index] = await mapper(items[index])
+      }
+    })
+  )
+
+  return results
+}
+
 export class PlacesService {
   private config = getLeadFinderConfig()
 
@@ -86,24 +107,34 @@ export class PlacesService {
     const rawPlaces: PlaceRecord[] = []
     const locationErrors: PlacesAPIError[] = []
 
-    for (const businessType of businessTypes) {
-      for (const loc of locations) {
+    const searches = businessTypes.flatMap(businessType =>
+      locations.map(location => ({ businessType, location }))
+    )
+    const searchResults = await mapWithConcurrency(
+      searches,
+      this.config.placesMaxConcurrency,
+      async ({ businessType, location }) => {
         try {
           let center: [number, number] | null = null
           if (request.deep_search) {
-            center = await this.tryGeocodeLocation(loc)
+            center = await this.tryGeocodeLocation(location)
           }
-          const batch = await this.fetchPlaces({ ...request, business_type: businessType }, loc, center)
-          rawPlaces.push(...batch)
-        } catch (exc) {
-          if (exc instanceof PlacesAPIError) {
-            locationErrors.push(exc)
-            if (exc.code === 'quota_exceeded' && rawPlaces.length) break
-          } else {
-            throw exc
-          }
+          const places = await this.fetchPlaces(
+            { ...request, business_type: businessType },
+            location,
+            center
+          )
+          return { places, error: null }
+        } catch (error) {
+          if (error instanceof PlacesAPIError) return { places: [], error }
+          throw error
         }
       }
+    )
+
+    for (const result of searchResults) {
+      rawPlaces.push(...result.places)
+      if (result.error) locationErrors.push(result.error)
     }
 
     if (!rawPlaces.length && locationErrors.length) {
@@ -173,18 +204,20 @@ export class PlacesService {
     center: [number, number] | null
   ): Promise<PlaceRecord[]> {
     const jobs = this.buildSearchJobs(request, location, center)
-    const results: PlaceRecord[] = []
-    const errors: PlacesAPIError[] = []
-
-    for (const job of jobs) {
-      try {
-        const batch = await this.textSearchPaginated(job, request.deep_search)
-        results.push(...batch)
-      } catch (exc) {
-        if (exc instanceof PlacesAPIError) errors.push(exc)
-        else throw exc
+    const jobResults = await mapWithConcurrency(
+      jobs,
+      1,
+      async job => {
+        try {
+          return { places: await this.textSearchPaginated(job, request.deep_search), error: null }
+        } catch (error) {
+          if (error instanceof PlacesAPIError) return { places: [], error }
+          throw error
+        }
       }
-    }
+    )
+    const results = jobResults.flatMap(result => result.places)
+    const errors = jobResults.flatMap(result => result.error ? [result.error] : [])
 
     if (results.length) return results
     if (errors.length) throw errors[0]
