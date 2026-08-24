@@ -14,6 +14,8 @@ interface LeadFilters {
   status?: LeadStatus
   source?: LeadSource
   assigned_to?: string
+  category?: string
+  subcategory?: string
 }
 
 const LEAD_SELECT = `
@@ -37,6 +39,8 @@ export function useLeads(filters?: LeadFilters) {
       if (filters?.status) query = query.eq('status', filters.status)
       if (filters?.source) query = query.eq('source', filters.source)
       if (filters?.assigned_to) query = query.eq('assigned_to', filters.assigned_to)
+      if (filters?.category) query = query.eq('category', filters.category)
+      if (filters?.subcategory) query = query.eq('subcategory', filters.subcategory)
 
       const { data, error } = await query
       if (error) throw error
@@ -70,6 +74,8 @@ interface CreateLeadData {
   phone?: string | null
   email?: string | null
   industry?: string | null
+  category?: string | null
+  subcategory?: string | null
   website?: string | null
   source?: LeadSource
   interested_service?: string | null
@@ -111,6 +117,8 @@ interface UpdateLeadData {
   phone?: string | null
   email?: string | null
   industry?: string | null
+  category?: string | null
+  subcategory?: string | null
   website?: string | null
   source?: LeadSource
   interested_service?: string | null

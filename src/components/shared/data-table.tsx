@@ -150,6 +150,7 @@ export function DataTable<T extends Record<string, any>>({
                 <SelectItem value="10">10</SelectItem>
                 <SelectItem value="25">25</SelectItem>
                 <SelectItem value="50">50</SelectItem>
+                <SelectItem value="1000">1000</SelectItem>
               </SelectContent>
             </Select>
             <span>

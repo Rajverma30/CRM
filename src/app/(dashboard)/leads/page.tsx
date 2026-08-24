@@ -24,6 +24,7 @@ import { LeadStatus, LeadSource } from '@/lib/types/database'
 import { formatDate, formatCurrency, capitalize, getInitials } from '@/lib/utils'
 import { LeadForm } from '@/components/modules/leads/lead-form'
 import { LeadImportDialog } from '@/components/modules/leads/lead-import-dialog'
+import { getLeadSubcategories, LEAD_CATEGORY_OPTIONS } from '@/lib/constants/lead-categories'
 
 const KANBAN_COLUMNS: KanbanColumn[] = [
   { id: 'new', title: 'New', color: '#3b82f6' },
@@ -45,6 +46,8 @@ export default function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [sourceFilter, setSourceFilter] = useState('all')
   const [assignedFilter, setAssignedFilter] = useState('all')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [subcategoryFilter, setSubcategoryFilter] = useState('all')
   const [formOpen, setFormOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [editLead, setEditLead] = useState<LeadWithAssignee | null>(null)
@@ -54,10 +57,13 @@ export default function LeadsPage() {
     status: statusFilter === 'all' ? undefined : statusFilter as LeadStatus,
     source: sourceFilter === 'all' ? undefined : sourceFilter as LeadSource,
     assigned_to: assignedFilter === 'all' ? undefined : assignedFilter,
+    category: categoryFilter === 'all' ? undefined : categoryFilter,
+    subcategory: subcategoryFilter === 'all' ? undefined : subcategoryFilter,
   })
   const { data: employees = [] } = useEmployees({ is_active: true })
   const updateLead = useUpdateLead()
   const deleteLead = useDeleteLead()
+  const subcategories = getLeadSubcategories(categoryFilter === 'all' ? '' : categoryFilter)
 
   function handleKanbanMove(itemId: string, newStatus: string) {
     updateLead.mutate({ id: itemId, status: newStatus as LeadStatus })
@@ -175,6 +181,24 @@ export default function LeadsPage() {
               <SelectItem value="all">All Employees</SelectItem>
               {employees.map(e => (
                 <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={categoryFilter} onValueChange={value => { setCategoryFilter(value); setSubcategoryFilter('all') }}>
+            <SelectTrigger className="w-[170px]"><SelectValue placeholder="Category" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {LEAD_CATEGORY_OPTIONS.map(category => (
+                <SelectItem key={category} value={category}>{category}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={subcategoryFilter} onValueChange={setSubcategoryFilter} disabled={!subcategories.length}>
+            <SelectTrigger className="w-[190px]"><SelectValue placeholder="Subcategory" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Subcategories</SelectItem>
+              {subcategories.map(subcategory => (
+                <SelectItem key={subcategory} value={subcategory}>{subcategory}</SelectItem>
               ))}
             </SelectContent>
           </Select>

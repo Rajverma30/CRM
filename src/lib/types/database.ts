@@ -154,6 +154,8 @@ export interface LeadRow {
   phone: string | null;
   email: string | null;
   industry: string | null;
+  category: string | null;
+  subcategory: string | null;
   website: string | null;
   address: string | null;
   rating: number | null;

@@ -11,6 +11,7 @@ import { useCreateLead, useUpdateLead, LeadWithAssignee } from '@/lib/queries/us
 import { useEmployees } from '@/lib/queries/use-employees'
 import { LeadStatus, LeadSource } from '@/lib/types/database'
 import { capitalize } from '@/lib/utils'
+import { getLeadSubcategories, LEAD_CATEGORY_OPTIONS } from '@/lib/constants/lead-categories'
 
 const LEAD_STATUSES: LeadStatus[] = ['new', 'contacted', 'interested', 'proposal_sent', 'negotiation', 'won', 'lost']
 const LEAD_SOURCES: LeadSource[] = ['google_maps', 'instagram', 'referral', 'website', 'whatsapp', 'cold_call', 'other']
@@ -33,6 +34,8 @@ export function LeadForm({ open, onOpenChange, lead }: LeadFormProps) {
     phone: '',
     email: '',
     industry: '',
+    category: '',
+    subcategory: '',
     website: '',
     source: 'other' as string,
     interested_service: '',
@@ -52,6 +55,8 @@ export function LeadForm({ open, onOpenChange, lead }: LeadFormProps) {
           phone: lead.phone ?? '',
           email: lead.email ?? '',
           industry: lead.industry ?? '',
+          category: lead.category ?? '',
+          subcategory: lead.subcategory ?? '',
           website: lead.website ?? '',
           source: lead.source,
           interested_service: lead.interested_service ?? '',
@@ -67,6 +72,8 @@ export function LeadForm({ open, onOpenChange, lead }: LeadFormProps) {
           phone: '',
           email: '',
           industry: '',
+          category: '',
+          subcategory: '',
           website: '',
           source: 'other',
           interested_service: '',
@@ -94,6 +101,8 @@ export function LeadForm({ open, onOpenChange, lead }: LeadFormProps) {
       phone: form.phone.trim() || null,
       email: form.email.trim() || null,
       industry: form.industry.trim() || null,
+      category: form.category || null,
+      subcategory: form.subcategory || null,
       website: form.website.trim() || null,
       source: form.source as LeadSource,
       interested_service: form.interested_service.trim() || null,
@@ -117,6 +126,7 @@ export function LeadForm({ open, onOpenChange, lead }: LeadFormProps) {
 
   const isPending = createLead.isPending || updateLead.isPending
   const set = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }))
+  const subcategories = getLeadSubcategories(form.category)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -148,6 +158,32 @@ export function LeadForm({ open, onOpenChange, lead }: LeadFormProps) {
             <div className="space-y-2">
               <Label htmlFor="industry">Industry</Label>
               <Input id="industry" value={form.industry} onChange={e => set('industry', e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={form.category || '_none'} onValueChange={v => {
+                setForm(f => ({ ...f, category: v === '_none' ? '' : v, subcategory: '' }))
+              }}>
+                <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">Select category</SelectItem>
+                  {LEAD_CATEGORY_OPTIONS.map(category => (
+                    <SelectItem key={category} value={category}>{category}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Subcategory</Label>
+              <Select value={form.subcategory || '_none'} onValueChange={v => set('subcategory', v === '_none' ? '' : v)} disabled={!subcategories.length}>
+                <SelectTrigger><SelectValue placeholder="Select subcategory" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">Select subcategory</SelectItem>
+                  {subcategories.map(subcategory => (
+                    <SelectItem key={subcategory} value={subcategory}>{subcategory}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="website">Website</Label>

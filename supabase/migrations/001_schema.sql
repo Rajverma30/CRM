@@ -153,6 +153,8 @@ CREATE TABLE leads (
   phone text,
   email text,
   industry text,
+  category text,
+  subcategory text,
   website text,
   source lead_source DEFAULT 'other',
   interested_service text,
