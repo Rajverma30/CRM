@@ -33,6 +33,8 @@ function getDuplicateKeys(payload: {
 function buildLeadPayload(business: BusinessLead, tenantId: string) {
   const trimmedName = business.name?.trim() || 'Unknown business'
   const trimmedPhone = business.phone || business.international_phone || null
+  const categoryText = business.category?.toLowerCase() ?? ''
+  const isRealEstate = categoryText.includes('real estate') || categoryText.includes('property') || categoryText.includes('builder') || categoryText.includes('broker')
 
   return {
     tenant_id: tenantId,
@@ -57,6 +59,8 @@ function buildLeadPayload(business: BusinessLead, tenantId: string) {
       business.google_maps_url ? `Maps: ${business.google_maps_url}` : null,
     ].filter(Boolean).join('\n') || null,
     status: 'new' as const,
+    category: isRealEstate ? 'Real Estate' : null,
+    subcategory: isRealEstate ? 'Broker / Agent' : null,
   }
 }
 

@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
       source: 'google_maps' as const,
       status: 'new' as const,
       _source: lead,
+      ...getCategory(lead.industry),
     }))
 
     let inserted = 0
@@ -99,12 +100,14 @@ export async function POST(request: NextRequest) {
       if (error) {
         if (/address|rating|reviews|google_maps|place_id|latitude|longitude|lead_score/i.test(error.message)) {
           usedFallback = true
-          const fallback = batch.map(({ tenant_id, business_name, phone, website, industry, source, status, _source }) => ({
+          const fallback = batch.map(({ tenant_id, business_name, phone, website, industry, category, subcategory, source, status, _source }) => ({
             tenant_id,
             business_name,
             phone,
             website,
             industry,
+            category,
+            subcategory,
             source,
             status,
             notes: buildNotes(_source),
@@ -137,4 +140,12 @@ export async function POST(request: NextRequest) {
     console.error('Import leads error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
+}
+
+function getCategory(industry: string | null | undefined): { category: string | null; subcategory: string | null } {
+  const value = industry?.toLowerCase() ?? ''
+  if (!value.includes('real estate') && !value.includes('property') && !value.includes('builder') && !value.includes('broker')) {
+    return { category: null, subcategory: null }
+  }
+  return { category: 'Real Estate', subcategory: 'Broker / Agent' }
 }
