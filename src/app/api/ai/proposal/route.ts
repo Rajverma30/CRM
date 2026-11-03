@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { callGemini, getGeminiApiKey } from '@/lib/ai/gemini'
 
 const SYSTEM_PROMPT = `You are a professional proposal/quotation generator for a tech company called Vraizen Tech. Given a prompt describing a project, generate a structured proposal in JSON format.
 
@@ -73,9 +74,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 })
     }
 
-    const aiProvider = process.env.AI_PROVIDER
+    const aiProvider = process.env.AI_PROVIDER || 'gemini'
     const openaiKey = process.env.OPENAI_API_KEY
-    const geminiKey = process.env.GEMINI_API_KEY || (aiProvider === 'gemini' ? process.env.AI_API_KEY : null)
+    const geminiKey = getGeminiApiKey()
 
     if (aiProvider === 'openai' && openaiKey) {
       const userPrompt = `Generate a proposal for: ${prompt}${clientName ? `\nClient: ${clientName}` : ''}${industry ? `\nIndustry: ${industry}` : ''}`

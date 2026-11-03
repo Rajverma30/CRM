@@ -93,25 +93,65 @@ export function BulkWhatsAppDialog({
     }))
   })
 
-  // Whenever valid leads change or dialog opens with new leads, reset queue
+  // Whenever valid leads change or dialog opens with new leads, reset queue & auto-generate with AI
   useEffect(() => {
     if (open && validLeads.length > 0) {
-      setQueue(
-        validLeads.map(lead => ({
-          lead,
-          phone: lead.phone || '',
-          message: generateSmartWhatsAppMessage(lead, {
-            focus: !lead.website ? 'website' : 'google_maps',
-            language,
-            senderNumber,
-          }),
-          state: 'pending',
-          aiGenerated: false,
-        }))
-      )
+      const initialItems: QueueItem[] = validLeads.map(lead => ({
+        lead,
+        phone: lead.phone || '',
+        message: generateSmartWhatsAppMessage(lead, {
+          focus: !lead.website ? 'website' : 'google_maps',
+          language,
+          senderNumber,
+        }),
+        state: 'pending',
+        aiGenerated: false,
+      }))
+      setQueue(initialItems)
       setCurrentIndex(0)
+
+      // Auto-trigger Gemini batch generation
+      setIsGeneratingAll(true)
+      fetch('/api/ai/whatsapp-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leads: initialItems.map(q => q.lead),
+          focus,
+          language,
+          senderNumber,
+        }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.messages && Array.isArray(data.messages)) {
+            const msgMap = new Map<string, string>()
+            data.messages.forEach((m: any) => {
+              if (m.id && m.message) msgMap.set(String(m.id), m.message)
+              if (m.business_name && m.message) msgMap.set(String(m.business_name), m.message)
+            })
+            setQueue(prev =>
+              prev.map(item => {
+                const aiMsg =
+                  msgMap.get(item.lead.id || '') ||
+                  msgMap.get(item.lead.business_name || '')
+                return {
+                  ...item,
+                  message: aiMsg || item.message,
+                  aiGenerated: Boolean(data.aiGenerated),
+                }
+              })
+            )
+          }
+        })
+        .catch(err => {
+          console.error('Auto batch generation failed:', err)
+        })
+        .finally(() => {
+          setIsGeneratingAll(false)
+        })
     }
-  }, [open, validLeads, language, senderNumber])
+  }, [open, validLeads, language, senderNumber, focus])
 
   const currentItem = queue[currentIndex]
   const sentCount = queue.filter(q => q.state === 'sent').length

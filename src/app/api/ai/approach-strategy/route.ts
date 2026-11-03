@@ -1,58 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { LeadPitchInfo, DEFAULT_SENDER_NUMBER } from '@/lib/whatsapp/utils'
+import { callGemini, getGeminiApiKey } from '@/lib/ai/gemini'
 
 interface StrategyRequest {
   lead?: LeadPitchInfo
   language?: 'hinglish' | 'hindi' | 'english'
   customNotes?: string
-}
-
-async function callGeminiStrategy(apiKey: string, prompt: string): Promise<{ text: string; model: string }> {
-  const models = [
-    'gemini-3.5-flash-lite',
-    'gemini-3.5-flash',
-    'gemini-3.8-flash',
-    'gemini-flash-latest',
-  ]
-  let lastError: Error | null = null
-
-  for (const model of models) {
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: prompt }],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 2048,
-          },
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        const errorMsg = errorData?.error?.message || `Gemini API returned status ${response.status}`
-        throw new Error(errorMsg)
-      }
-
-      const data = await response.json()
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
-      if (text) return { text: text.trim(), model }
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err))
-    }
-  }
-
-  throw lastError || new Error('Failed to generate strategy with Gemini')
 }
 
 function generateFallbackStrategy(lead: LeadPitchInfo, language: string): string {
@@ -120,8 +73,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Lead details are required' }, { status: 400 })
     }
 
-    const rawKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY || ''
-    const geminiKey = rawKey.trim()
+    const geminiKey = getGeminiApiKey()
 
     if (geminiKey) {
       try {
@@ -139,7 +91,7 @@ Business Profile:
 - Contact Person: ${lead.contact_person || 'Owner'}
 - Category/Industry: ${category}
 - City / Address: ${lead.city || lead.address || 'Local area'}
-- Website: ${hasWebsite ? lead.website : 'NO WEBSITE'}
+- Website: ${hasWebsite ? lead.website : 'NO WEBSITE (Crucial opening for sales pitch)'}
 - Google Rating: ${lead.rating ? `${lead.rating} stars (${lead.reviews ?? 0} reviews)` : 'Not specified'}
 - Google Maps URL: ${lead.google_maps_url || 'Not specified'}
 - Phone: ${lead.phone || 'Not specified'}
@@ -165,7 +117,11 @@ Provide an irresistible closing technique (like a free demo mockup, free GMB aud
 
 Tone: Highly strategic, practical, action-oriented, encouraging. Output in clean Markdown.`
 
-        const { text: strategy, model } = await callGeminiStrategy(geminiKey, prompt)
+        const { text: strategy, model } = await callGemini(prompt, {
+          maxTokens: 1500,
+          temperature: 0.7,
+        })
+
         return NextResponse.json({
           strategy,
           aiGenerated: true,
@@ -189,4 +145,3 @@ Tone: Highly strategic, practical, action-oriented, encouraging. Output in clean
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
-
