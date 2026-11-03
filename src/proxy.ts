@@ -34,6 +34,12 @@ export async function proxy(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
   const isLoginPage = pathname === '/login'
+  const isApiRoute = pathname.startsWith('/api')
+
+  // Do not redirect API requests to /login HTML page
+  if (isApiRoute) {
+    return supabaseResponse
+  }
 
   if (!user && !isLoginPage) {
     const url = request.nextUrl.clone()

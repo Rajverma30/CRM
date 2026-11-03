@@ -56,12 +56,11 @@ export async function callGemini(
 
   const { maxTokens = 1024, temperature = 0.7 } = options
 
-  // gemini-3.5-flash-lite is fastest (1-2s response), followed by flash
+  // Tested active 2026 models with fast response times
   const models = [
-    'gemini-3.5-flash-lite',
     'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
     'gemini-3.8-flash',
-    'gemini-flash-latest',
   ]
 
   let lastError: Error | null = null
@@ -74,6 +73,7 @@ export async function callGemini(
         headers: {
           'Content-Type': 'application/json',
         },
+        signal: AbortSignal.timeout(12000),
         body: JSON.stringify({
           contents: [
             {
@@ -92,7 +92,7 @@ export async function callGemini(
         const errorData = await response.json().catch(() => ({}))
         const errorMsg =
           errorData?.error?.message || `Gemini API returned status ${response.status}`
-        throw new Error(errorMsg)
+        throw new Error(`[${model}] ${errorMsg}`)
       }
 
       const data = await response.json()
@@ -101,9 +101,11 @@ export async function callGemini(
       const text = textPart?.text || parts[0]?.text
 
       if (text) {
+        console.log(`[Gemini] Generated successfully using model: ${model}`)
         return { text: text.trim(), model }
       }
     } catch (err) {
+      console.warn(`[Gemini] Model ${model} attempt failed:`, err instanceof Error ? err.message : err)
       lastError = err instanceof Error ? err : new Error(String(err))
     }
   }
