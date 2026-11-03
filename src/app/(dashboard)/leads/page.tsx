@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, LayoutGrid, Table2, MoreHorizontal, Eye, Pencil, Trash2, Target, Upload } from 'lucide-react'
+import { Plus, LayoutGrid, Table2, MoreHorizontal, Eye, Pencil, Trash2, Target, Upload, MessageSquare } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { DataTable, Column } from '@/components/shared/data-table'
 import { KanbanBoard, KanbanColumn } from '@/components/shared/kanban-board'
@@ -26,6 +26,8 @@ import { LeadStatus, LeadSource } from '@/lib/types/database'
 import { formatDate, formatCurrency, capitalize, getInitials } from '@/lib/utils'
 import { LeadForm } from '@/components/modules/leads/lead-form'
 import { LeadImportDialog } from '@/components/modules/leads/lead-import-dialog'
+import { WhatsAppOutreachDialog, WhatsAppDialogLead } from '@/components/modules/leads/whatsapp-outreach-dialog'
+import { BulkWhatsAppDialog } from '@/components/modules/leads/bulk-whatsapp-dialog'
 import { getLeadSubcategories, LEAD_CATEGORIES, LEAD_CATEGORY_OPTIONS } from '@/lib/constants/lead-categories'
 
 const KANBAN_COLUMNS: KanbanColumn[] = [
@@ -105,6 +107,9 @@ export default function LeadsPage() {
   const [importOpen, setImportOpen] = useState(false)
   const [editLead, setEditLead] = useState<LeadWithAssignee | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [whatsappLead, setWhatsappLead] = useState<WhatsAppDialogLead | null>(null)
+  const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false)
+  const [bulkWhatsappOpen, setBulkWhatsappOpen] = useState(false)
 
   const { data: leads = [], isLoading } = useLeads({
     status: statusFilter === 'all' ? undefined : statusFilter as LeadStatus,
@@ -159,28 +164,54 @@ export default function LeadsPage() {
     {
       key: 'actions',
       header: '',
-      className: 'w-10',
+      className: 'w-16',
       render: (row) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={e => e.stopPropagation()}>
-              <MoreHorizontal className="h-4 w-4" />
+        <div className="flex items-center gap-1 justify-end" onClick={e => e.stopPropagation()}>
+          {row.phone && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-[#25D366] hover:text-[#20ba59] hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+              title="Send WhatsApp Message"
+              onClick={() => {
+                setWhatsappLead(row)
+                setWhatsappDialogOpen(true)
+              }}
+            >
+              <MessageSquare className="h-4 w-4" />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" onClick={e => e.stopPropagation()}>
-            <DropdownMenuItem onClick={() => router.push(`/leads/${row.id}`)}>
-              <Eye className="mr-2 h-4 w-4" /> View
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => { setEditLead(row); setFormOpen(true) }}>
-              <Pencil className="mr-2 h-4 w-4" /> Edit
-            </DropdownMenuItem>
-            {isAdmin && (
-              <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(row.id)}>
-                <Trash2 className="mr-2 h-4 w-4" /> Delete
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => router.push(`/leads/${row.id}`)}>
+                <Eye className="mr-2 h-4 w-4" /> View
               </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              {row.phone && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    setWhatsappLead(row)
+                    setWhatsappDialogOpen(true)
+                  }}
+                >
+                  <MessageSquare className="mr-2 h-4 w-4 text-[#25D366]" /> Send WhatsApp
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => { setEditLead(row); setFormOpen(true) }}>
+                <Pencil className="mr-2 h-4 w-4" /> Edit
+              </DropdownMenuItem>
+              {isAdmin && (
+                <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(row.id)}>
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       ),
     },
   ]
@@ -199,6 +230,14 @@ export default function LeadsPage() {
     <div className="space-y-6">
       <PageHeader title="Leads Pipeline" description="Manage and track your sales leads.">
         <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            className="border-emerald-500/40 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-950/40"
+            onClick={() => setBulkWhatsappOpen(true)}
+            title="Bulk WhatsApp outreach to leads"
+          >
+            <MessageSquare className="mr-2 h-4 w-4 text-[#25D366]" /> Bulk WhatsApp
+          </Button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="mr-2 h-4 w-4" /> Upload Excel
           </Button>
@@ -297,9 +336,26 @@ export default function LeadsPage() {
                   ) : (
                     <span />
                   )}
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                    {capitalize(lead.source)}
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    {lead.phone && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0 text-[#25D366] hover:text-[#20ba59] hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                        title="Send WhatsApp Message"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setWhatsappLead(lead)
+                          setWhatsappDialogOpen(true)
+                        }}
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                      {capitalize(lead.source)}
+                    </Badge>
+                  </div>
                 </div>
                 {lead.assignee && (
                   <div className="flex items-center gap-1.5 pt-1 border-t">
@@ -348,6 +404,18 @@ export default function LeadsPage() {
             deleteLead.mutate(deleteId, { onSuccess: () => setDeleteId(null) })
           }
         }}
+      />
+
+      <WhatsAppOutreachDialog
+        open={whatsappDialogOpen}
+        onOpenChange={setWhatsappDialogOpen}
+        lead={whatsappLead}
+      />
+
+      <BulkWhatsAppDialog
+        open={bulkWhatsappOpen}
+        onOpenChange={setBulkWhatsappOpen}
+        leads={leads}
       />
     </div>
   )

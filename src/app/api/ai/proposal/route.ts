@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
 
     const aiProvider = process.env.AI_PROVIDER
     const openaiKey = process.env.OPENAI_API_KEY
+    const geminiKey = process.env.GEMINI_API_KEY || (aiProvider === 'gemini' ? process.env.AI_API_KEY : null)
 
     if (aiProvider === 'openai' && openaiKey) {
       const userPrompt = `Generate a proposal for: ${prompt}${clientName ? `\nClient: ${clientName}` : ''}${industry ? `\nIndustry: ${industry}` : ''}`
@@ -106,6 +107,36 @@ export async function POST(request: NextRequest) {
       if (!content) throw new Error('No response from AI')
 
       return NextResponse.json(JSON.parse(content))
+    }
+
+    if (geminiKey) {
+      try {
+        const userPrompt = `${SYSTEM_PROMPT}\n\nGenerate a proposal for: ${prompt}${clientName ? `\nClient: ${clientName}` : ''}${industry ? `\nIndustry: ${industry}` : ''}\n\nRespond ONLY with valid JSON strictly matching the schema.`
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+            generationConfig: {
+              temperature: 0.7,
+              responseMimeType: 'application/json',
+            },
+          }),
+        })
+
+        if (res.ok) {
+          const data = await res.json()
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+          if (text) {
+            const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim()
+            return NextResponse.json(JSON.parse(cleaned))
+          }
+        }
+      } catch (geminiErr) {
+        console.warn('Gemini proposal generation failed, falling back:', geminiErr)
+      }
     }
 
     return NextResponse.json(generateFallback(prompt, clientName))

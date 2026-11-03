@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { ScanSearch } from 'lucide-react'
+import { ScanSearch, MessageSquare } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth/auth-context'
 import { searchBusinesses, downloadCachedExport, saveBusinessesToLeads } from '@/lib/lead-finder/client'
 import { loadCachedSearch, saveCachedSearch } from '@/lib/lead-finder/cache'
@@ -13,6 +14,8 @@ import { LeadFinderSearchForm } from '@/components/modules/lead-finder/search-fo
 import { LeadFinderResultsTable } from '@/components/modules/lead-finder/results-table'
 import { LeadFinderExportButtons } from '@/components/modules/lead-finder/export-buttons'
 import { LeadFinderLoadingState } from '@/components/modules/lead-finder/loading-state'
+import { WhatsAppOutreachDialog, WhatsAppDialogLead } from '@/components/modules/leads/whatsapp-outreach-dialog'
+import { BulkWhatsAppDialog, BulkLeadItem } from '@/components/modules/leads/bulk-whatsapp-dialog'
 
 const INITIAL_FORM: SearchFormState = {
   business_type: 'Salon',
@@ -43,6 +46,9 @@ export default function LeadFinderPage() {
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [hasSearched, setHasSearched] = useState(Boolean(cachedSearch))
+  const [whatsappLead, setWhatsappLead] = useState<WhatsAppDialogLead | null>(null)
+  const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false)
+  const [bulkWhatsappOpen, setBulkWhatsappOpen] = useState(false)
 
   const runSearch = useCallback(async (params: SearchFormState) => {
     setLoading(true)
@@ -167,13 +173,25 @@ export default function LeadFinderPage() {
                   before filters · {result.query} in {result.location}
                 </p>
               </div>
-              <LeadFinderExportButtons
-                disabled={result.total === 0}
-                exporting={exporting}
-                saving={saving}
-                onExport={handleExport}
-                onSave={handleSaveToLeads}
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={result.total === 0}
+                  onClick={() => setBulkWhatsappOpen(true)}
+                  className="border-emerald-500/40 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-950/40 text-xs h-9"
+                  title="Send bulk WhatsApp outreach to found businesses"
+                >
+                  <MessageSquare className="mr-1.5 h-4 w-4 text-[#25D366]" /> Bulk WhatsApp
+                </Button>
+                <LeadFinderExportButtons
+                  disabled={result.total === 0}
+                  exporting={exporting}
+                  saving={saving}
+                  onExport={handleExport}
+                  onSave={handleSaveToLeads}
+                />
+              </div>
             </CardContent>
           </Card>
 
@@ -186,7 +204,21 @@ export default function LeadFinderPage() {
             </Card>
           ) : (
             <>
-              <LeadFinderResultsTable businesses={result.businesses} />
+              <LeadFinderResultsTable
+                businesses={result.businesses}
+                onWhatsAppClick={(biz) => {
+                  setWhatsappLead({
+                    business_name: biz.name,
+                    phone: biz.phone || biz.international_phone,
+                    category: biz.category,
+                    website: biz.website,
+                    rating: biz.rating,
+                    reviews: biz.review_count,
+                    address: biz.address,
+                  })
+                  setWhatsappDialogOpen(true)
+                }}
+              />
               <p className="text-xs text-muted-foreground">{result.coverage_note}</p>
             </>
           )}
@@ -209,6 +241,29 @@ export default function LeadFinderPage() {
         Powered by Google Places API (New). Results are relevance-based and may not cover every
         business in a city. API keys stay on the server.
       </p>
+
+      <WhatsAppOutreachDialog
+        open={whatsappDialogOpen}
+        onOpenChange={setWhatsappDialogOpen}
+        lead={whatsappLead}
+      />
+
+      <BulkWhatsAppDialog
+        open={bulkWhatsappOpen}
+        onOpenChange={setBulkWhatsappOpen}
+        leads={
+          result?.businesses.map(b => ({
+            id: b.place_id,
+            business_name: b.name,
+            phone: b.phone || b.international_phone,
+            category: b.category,
+            website: b.website,
+            rating: b.rating,
+            reviews: b.review_count,
+            address: b.address,
+          })) || []
+        }
+      />
     </div>
   )
 }

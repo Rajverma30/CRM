@@ -13,10 +13,11 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { ArrowLeft, Pencil, Trash2, ArrowRightLeft, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, ArrowRightLeft, AlertTriangle, MessageSquare } from 'lucide-react'
 import { formatDate, formatCurrency, capitalize, getInitials } from '@/lib/utils'
 import { LeadForm } from '@/components/modules/leads/lead-form'
 import { ConvertLeadDialog } from '@/components/modules/leads/convert-lead-dialog'
+import { WhatsAppOutreachDialog } from '@/components/modules/leads/whatsapp-outreach-dialog'
 
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -27,6 +28,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const [formOpen, setFormOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [convertOpen, setConvertOpen] = useState(false)
+  const [whatsappOpen, setWhatsappOpen] = useState(false)
 
   if (!isAdmin) {
     return <EmptyState icon={AlertTriangle} title="Access Denied" description="Only admins can view lead details." />
@@ -51,7 +53,15 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             <Badge variant="outline">{capitalize(lead.source)}</Badge>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {lead.phone && (
+            <Button
+              className="bg-[#25D366] hover:bg-[#20ba59] text-white"
+              onClick={() => setWhatsappOpen(true)}
+            >
+              <MessageSquare className="mr-2 h-4 w-4" /> Send WhatsApp
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setFormOpen(true)}>
             <Pencil className="mr-2 h-4 w-4" /> Edit
           </Button>
@@ -83,7 +93,19 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Phone</p>
-            <p className="font-medium">{lead.phone ?? '—'}</p>
+            <div className="flex items-center gap-2">
+              <p className="font-medium">{lead.phone ?? '—'}</p>
+              {lead.phone && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-1.5 text-xs text-[#25D366] hover:text-[#20ba59] hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                  onClick={() => setWhatsappOpen(true)}
+                >
+                  <MessageSquare className="h-3 w-3 mr-1" /> WhatsApp
+                </Button>
+              )}
+            </div>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Industry</p>
@@ -199,6 +221,12 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             },
           })
         }}
+      />
+
+      <WhatsAppOutreachDialog
+        open={whatsappOpen}
+        onOpenChange={setWhatsappOpen}
+        lead={lead}
       />
     </div>
   )
