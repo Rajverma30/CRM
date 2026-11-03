@@ -112,26 +112,29 @@ export async function POST(request: NextRequest) {
     if (geminiKey) {
       try {
         const userPrompt = `${SYSTEM_PROMPT}\n\nGenerate a proposal for: ${prompt}${clientName ? `\nClient: ${clientName}` : ''}${industry ? `\nIndustry: ${industry}` : ''}\n\nRespond ONLY with valid JSON strictly matching the schema.`
+        const models = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest']
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-            generationConfig: {
-              temperature: 0.7,
-              responseMimeType: 'application/json',
-            },
-          }),
-        })
+        for (const model of models) {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+              generationConfig: {
+                temperature: 0.7,
+                responseMimeType: 'application/json',
+              },
+            }),
+          })
 
-        if (res.ok) {
-          const data = await res.json()
-          const text = data.candidates?.[0]?.content?.parts?.[0]?.text
-          if (text) {
-            const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim()
-            return NextResponse.json(JSON.parse(cleaned))
+          if (res.ok) {
+            const data = await res.json()
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+            if (text) {
+              const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim()
+              return NextResponse.json(JSON.parse(cleaned))
+            }
           }
         }
       } catch (geminiErr) {
