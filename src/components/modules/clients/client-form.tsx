@@ -13,7 +13,7 @@ import { Client, ClientStatus } from '@/lib/types/database'
 import { LoadingSpinner } from '@/components/shared/loading-spinner'
 
 const CLIENT_STATUSES: ClientStatus[] = ['lead', 'active', 'inactive', 'completed', 'lost']
-
+//dsds
 const EMPTY_FORM = {
   business_name: '',
   phone: '',
