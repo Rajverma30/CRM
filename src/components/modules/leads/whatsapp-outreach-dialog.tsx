@@ -30,9 +30,7 @@ import {
   RefreshCw,
   Target,
   Lightbulb,
-  CheckCircle2,
   AlertCircle,
-  HelpCircle,
 } from 'lucide-react'
 import {
   cleanWhatsAppNumber,
@@ -75,13 +73,13 @@ export function WhatsAppOutreachDialog({
   const [markAsContacted, setMarkAsContacted] = useState(true)
   const [isAiGenerated, setIsAiGenerated] = useState(false)
   const [aiModelUsed, setAiModelUsed] = useState<string | null>(null)
-  const [fallbackReason, setFallbackReason] = useState<string | null>(null)
+  const [apiError, setApiError] = useState<string | null>(null)
 
   // Approach Strategy state
   const [strategy, setStrategy] = useState('')
   const [isGeneratingStrategy, setIsGeneratingStrategy] = useState(false)
   const [strategyCopied, setStrategyCopied] = useState(false)
-  const [strategyAiGenerated, setStrategyAiGenerated] = useState(false)
+  const [strategyError, setStrategyError] = useState<string | null>(null)
 
   // Sync state when dialog opens or lead changes
   useEffect(() => {
@@ -93,18 +91,22 @@ export function WhatsAppOutreachDialog({
       const initialFocus = !lead.website ? 'website' : 'google_maps'
       setFocus(initialFocus)
 
-      // Auto generate message on open
-      handleGenerate(rawPhone, initialFocus, language)
-
-      // Reset strategy
+      // Reset states
+      setMessage('')
       setStrategy('')
+      setApiError(null)
+      setStrategyError(null)
+
+      // Auto generate message strictly with Gemini API on open
+      handleGenerate(rawPhone, initialFocus, language)
     } else {
       setMessage('')
       setStrategy('')
       setCopied(false)
       setIsAiGenerated(false)
       setAiModelUsed(null)
-      setFallbackReason(null)
+      setApiError(null)
+      setStrategyError(null)
     }
   }, [lead, open, initialTab])
 
@@ -122,7 +124,7 @@ export function WhatsAppOutreachDialog({
   ) {
     if (!lead) return
     setIsGenerating(true)
-    setFallbackReason(null)
+    setApiError(null)
     try {
       const response = await fetch('/api/ai/whatsapp-message', {
         method: 'POST',
@@ -139,21 +141,20 @@ export function WhatsAppOutreachDialog({
         }),
       })
 
-      if (!response.ok) {
-        throw new Error('API request failed')
-      }
-
       const data = await response.json()
-      setMessage(data.message || '')
-      setIsAiGenerated(Boolean(data.aiGenerated))
-      setAiModelUsed(data.model || null)
 
-      if (!data.aiGenerated && data.fallbackReason) {
-        setFallbackReason(data.fallbackReason)
-        toast.info(`Smart template used: ${data.fallbackReason}`)
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Failed to call Gemini API')
       }
-    } catch (err) {
-      toast.error('Failed to generate message. Using fallback template.')
+
+      setMessage(data.message || '')
+      setIsAiGenerated(true)
+      setAiModelUsed(data.model || null)
+    } catch (err: any) {
+      const errorMsg = err.message || 'Gemini generation failed'
+      console.error('Error generating WhatsApp pitch:', errorMsg)
+      setApiError(errorMsg)
+      toast.error(errorMsg)
       setIsAiGenerated(false)
     } finally {
       setIsGenerating(false)
@@ -163,6 +164,7 @@ export function WhatsAppOutreachDialog({
   async function handleGenerateStrategy(targetLanguage = language) {
     if (!lead) return
     setIsGeneratingStrategy(true)
+    setStrategyError(null)
     try {
       const response = await fetch('/api/ai/approach-strategy', {
         method: 'POST',
@@ -173,12 +175,16 @@ export function WhatsAppOutreachDialog({
         }),
       })
 
-      if (!response.ok) throw new Error('Strategy API failed')
       const data = await response.json()
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Failed to generate strategy')
+      }
+
       setStrategy(data.strategy || '')
-      setStrategyAiGenerated(Boolean(data.aiGenerated))
-    } catch (err) {
-      toast.error('Could not generate strategy.')
+    } catch (err: any) {
+      const errorMsg = err.message || 'Gemini strategy call failed'
+      setStrategyError(errorMsg)
+      toast.error(errorMsg)
     } finally {
       setIsGeneratingStrategy(false)
     }
@@ -251,21 +257,25 @@ export function WhatsAppOutreachDialog({
               <div>
                 <DialogTitle className="text-lg">AI Outreach & Strategy</DialogTitle>
                 <DialogDescription className="text-xs">
-                  Tailored sales pitch and approach playbook for <span className="font-semibold text-foreground">{businessTitle}</span>
+                  Powered strictly by <span className="font-semibold text-emerald-600 font-mono">Google Gemini API</span> for {businessTitle}
                 </DialogDescription>
               </div>
             </div>
 
             <div className="flex items-center gap-1.5 self-start sm:self-auto">
               {isAiGenerated ? (
-                <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1 text-[11px]">
-                  <Sparkles className="h-3 w-3" /> Gemini AI Active
+                <Badge className="bg-emerald-600 text-white gap-1 text-[11px]">
+                  <Sparkles className="h-3 w-3" /> Gemini AI {aiModelUsed ? `(${aiModelUsed})` : ''}
                 </Badge>
-              ) : (
-                <Badge variant="secondary" className="gap-1 text-[11px]">
-                  Smart Template
+              ) : isGenerating ? (
+                <Badge variant="outline" className="text-emerald-600 border-emerald-300 animate-pulse gap-1 text-[11px]">
+                  <RefreshCw className="h-3 w-3 animate-spin" /> Calling Gemini...
                 </Badge>
-              )}
+              ) : apiError ? (
+                <Badge variant="destructive" className="gap-1 text-[11px]">
+                  <AlertCircle className="h-3 w-3" /> Gemini Error
+                </Badge>
+              ) : null}
             </div>
           </div>
         </DialogHeader>
@@ -384,14 +394,24 @@ export function WhatsAppOutreachDialog({
                 className="h-7 text-xs text-emerald-600 border-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 gap-1.5"
               >
                 <RefreshCw className={`h-3 w-3 ${isGenerating ? 'animate-spin' : ''}`} />
-                {isGenerating ? 'Gemini Generating...' : 'Regenerate Pitch'}
+                {isGenerating ? 'Gemini Generating...' : 'Regenerate Pitch (Gemini)'}
               </Button>
             </div>
+
+            {/* Error Message if any */}
+            {apiError && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2.5 text-xs text-destructive flex items-center justify-between">
+                <span>{apiError}</span>
+                <Button size="sm" variant="ghost" onClick={() => handleGenerate(phone, focus, language)} className="h-6 px-2 text-xs">
+                  Retry
+                </Button>
+              </div>
+            )}
 
             {/* Message Area */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Label className="text-xs font-medium">WhatsApp Message</Label>
+                <Label className="text-xs font-medium">WhatsApp Message (Gemini AI)</Label>
                 <span className="text-[10px] text-muted-foreground">
                   {message.length} chars • Fully editable
                 </span>
@@ -399,8 +419,9 @@ export function WhatsAppOutreachDialog({
 
               {isGenerating ? (
                 <div className="h-32 flex flex-col items-center justify-center rounded-md border border-dashed bg-muted/30 text-xs text-muted-foreground gap-2">
-                  <Sparkles className="h-5 w-5 animate-pulse text-emerald-500" />
-                  <span>Gemini AI is crafting a tailored pitch for {businessTitle}...</span>
+                  <Sparkles className="h-5 w-5 animate-spin text-emerald-500" />
+                  <span className="font-medium text-foreground">Gemini AI is generating unique pitch for {businessTitle}...</span>
+                  <span className="text-[11px]">Takes ~1-2 seconds</span>
                 </div>
               ) : (
                 <Textarea
@@ -408,7 +429,7 @@ export function WhatsAppOutreachDialog({
                   onChange={e => setMessage(e.target.value)}
                   rows={6}
                   className="text-xs leading-relaxed font-sans bg-background"
-                  placeholder="Type or generate message..."
+                  placeholder="Gemini AI will write your tailored message..."
                 />
               )}
             </div>
@@ -419,7 +440,7 @@ export function WhatsAppOutreachDialog({
                 Live WhatsApp Preview
               </p>
               <div className="max-w-[85%] rounded-lg rounded-tl-none bg-[#d9fdd3] dark:bg-[#005c4b] p-2 text-xs text-gray-900 dark:text-gray-100 shadow-sm whitespace-pre-wrap leading-relaxed">
-                {message || (isGenerating ? 'Generating...' : 'No message yet.')}
+                {message || (isGenerating ? 'Generating pitch with Gemini AI...' : 'No message generated yet. Click Regenerate Pitch.')}
                 <div className="flex items-center justify-end gap-1 mt-1 text-[9px] text-gray-500 dark:text-gray-300">
                   <span>Just now</span>
                   <span>✓✓</span>
@@ -462,9 +483,18 @@ export function WhatsAppOutreachDialog({
                 className="h-7 text-xs text-indigo-600 border-indigo-300 hover:bg-indigo-50 gap-1.5"
               >
                 <RefreshCw className={`h-3 w-3 ${isGeneratingStrategy ? 'animate-spin' : ''}`} />
-                {isGeneratingStrategy ? 'Analyzing...' : 'Refresh Strategy'}
+                {isGeneratingStrategy ? 'Analyzing with Gemini...' : 'Regenerate Strategy'}
               </Button>
             </div>
+
+            {strategyError && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2.5 text-xs text-destructive flex items-center justify-between">
+                <span>{strategyError}</span>
+                <Button size="sm" variant="ghost" onClick={() => handleGenerateStrategy(language)} className="h-6 px-2 text-xs">
+                  Retry
+                </Button>
+              </div>
+            )}
 
             {/* Strategy Content Box */}
             <div className="min-h-[240px] max-h-[360px] overflow-y-auto rounded-lg border bg-card p-3.5 text-xs leading-relaxed">
@@ -473,7 +503,7 @@ export function WhatsAppOutreachDialog({
                   <Sparkles className="h-6 w-6 animate-spin text-indigo-500" />
                   <p className="font-medium text-foreground">Gemini AI is analyzing {businessTitle}...</p>
                   <p className="text-[11px] text-muted-foreground text-center max-w-sm">
-                    Checking Google rating, reviews, website gaps, and writing cold call hooks & objection handlers.
+                    Checking Google rating, reviews, website gaps, cold call scripts, and objection killers.
                   </p>
                 </div>
               ) : strategy ? (
@@ -483,7 +513,7 @@ export function WhatsAppOutreachDialog({
               ) : (
                 <div className="h-48 flex flex-col items-center justify-center text-center text-xs text-muted-foreground gap-2">
                   <Target className="h-8 w-8 text-muted-foreground/40" />
-                  <p>Click below to generate a tailored client acquisition strategy.</p>
+                  <p>Click below to generate a tailored client acquisition strategy with Gemini.</p>
                   <Button
                     size="sm"
                     onClick={() => handleGenerateStrategy(language)}
@@ -550,8 +580,8 @@ export function WhatsAppOutreachDialog({
               <Button
                 type="button"
                 onClick={handleSend}
-                disabled={!cleanNumber}
-                className="w-full sm:w-auto gap-1.5 bg-[#25D366] hover:bg-[#20ba59] text-white font-medium text-xs shadow-sm"
+                disabled={!cleanNumber || isGenerating || !message}
+                className="w-full sm:w-auto gap-1.5 bg-[#25D366] hover:bg-[#20ba59] text-white font-medium text-xs shadow-sm disabled:opacity-50"
               >
                 <Send className="h-3.5 w-3.5" />
                 Send on WhatsApp

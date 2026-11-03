@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import {
-  generateSmartWhatsAppMessage,
-  LeadPitchInfo,
-  PitchOptions,
-  DEFAULT_SENDER_NUMBER,
-} from '@/lib/whatsapp/utils'
+import { LeadPitchInfo, PitchOptions, DEFAULT_SENDER_NUMBER } from '@/lib/whatsapp/utils'
 import { callGemini, getGeminiApiKey } from '@/lib/ai/gemini'
 
 interface GenerateRequest {
@@ -23,17 +18,16 @@ export async function POST(request: NextRequest) {
     const geminiKey = getGeminiApiKey()
     const sender = senderNumber || DEFAULT_SENDER_NUMBER
 
-    const pitchOptions: PitchOptions = {
-      focus,
-      language,
-      senderNumber: sender,
+    if (!geminiKey) {
+      return NextResponse.json(
+        { error: 'GEMINI_API_KEY is not configured in .env or .env.local.' },
+        { status: 500 }
+      )
     }
 
-    // Single lead generation
+    // Single lead generation strictly via Gemini API
     if (lead) {
-      if (geminiKey) {
-        try {
-          const prompt = `You are an elite B2B sales copywriter for Vraizen Tech (a digital marketing, website development & local business growth agency).
+      const prompt = `You are an elite B2B sales copywriter for Vraizen Tech (a digital marketing, web development & local business growth agency).
 Our WhatsApp contact: ${sender}.
 
 Write a personalized, high-converting, and respectful WhatsApp outreach pitch for this business:
@@ -61,42 +55,31 @@ Vraizen Tech
 WhatsApp: ${sender}
 6. Output ONLY the message text without quotes or markdown codeblocks.`
 
-          const { text: generatedMessage, model } = await callGemini(prompt, {
-            maxTokens: 600,
-            temperature: 0.7,
-          })
+      try {
+        const { text: generatedMessage, model } = await callGemini(prompt, {
+          maxTokens: 600,
+          temperature: 0.7,
+        })
 
-          return NextResponse.json({
-            message: generatedMessage,
-            aiGenerated: true,
-            provider: 'gemini',
-            model,
-          })
-        } catch (geminiError) {
-          console.error('Gemini API call failed:', geminiError)
-          const fallback = generateSmartWhatsAppMessage(lead, pitchOptions)
-          return NextResponse.json({
-            message: fallback,
-            aiGenerated: false,
-            fallbackReason: geminiError instanceof Error ? geminiError.message : String(geminiError),
-          })
-        }
+        return NextResponse.json({
+          message: generatedMessage,
+          aiGenerated: true,
+          provider: 'gemini',
+          model,
+        })
+      } catch (geminiError) {
+        console.error('Gemini API call failed:', geminiError)
+        const errorMsg = geminiError instanceof Error ? geminiError.message : String(geminiError)
+        return NextResponse.json(
+          { error: `Gemini AI generation failed: ${errorMsg}` },
+          { status: 500 }
+        )
       }
-
-      // No key configured
-      const fallback = generateSmartWhatsAppMessage(lead, pitchOptions)
-      return NextResponse.json({
-        message: fallback,
-        aiGenerated: false,
-        note: 'GEMINI_API_KEY is not configured in .env',
-      })
     }
 
-    // Batch/Bulk leads generation
+    // Batch/Bulk leads generation strictly via Gemini API
     if (leads && Array.isArray(leads) && leads.length > 0) {
-      if (geminiKey) {
-        try {
-          const prompt = `You are a B2B sales copywriter for Vraizen Tech.
+      const prompt = `You are a B2B sales copywriter for Vraizen Tech.
 Sender WhatsApp Number: ${sender}.
 Pitch Focus: ${focus}.
 Language: ${language}.
@@ -131,40 +114,32 @@ ${JSON.stringify(
   }))
 )}`
 
-          const { text: rawJson, model } = await callGemini(prompt, {
-            maxTokens: 2048,
-            temperature: 0.7,
-          })
-          const cleanedJson = rawJson.replace(/```json/g, '').replace(/```/g, '').trim()
-          const parsed = JSON.parse(cleanedJson)
+      try {
+        const { text: rawJson, model } = await callGemini(prompt, {
+          maxTokens: 2048,
+          temperature: 0.7,
+        })
+        const cleanedJson = rawJson.replace(/```json/g, '').replace(/```/g, '').trim()
+        const parsed = JSON.parse(cleanedJson)
 
-          return NextResponse.json({
-            messages: parsed.messages || [],
-            aiGenerated: true,
-            provider: 'gemini',
-            model,
-          })
-        } catch (err) {
-          console.error('Bulk Gemini generation failed:', err)
-        }
+        return NextResponse.json({
+          messages: parsed.messages || [],
+          aiGenerated: true,
+          provider: 'gemini',
+          model,
+        })
+      } catch (err) {
+        console.error('Bulk Gemini generation failed:', err)
+        const errorMsg = err instanceof Error ? err.message : String(err)
+        return NextResponse.json(
+          { error: `Bulk Gemini AI generation failed: ${errorMsg}` },
+          { status: 500 }
+        )
       }
-
-      // Fallback for batch
-      const messages = leads.map(l => ({
-        id: l.id || l.business_name,
-        business_name: l.business_name,
-        message: generateSmartWhatsAppMessage(l, pitchOptions),
-      }))
-
-      return NextResponse.json({
-        messages,
-        aiGenerated: false,
-        note: 'Generated using smart templates.',
-      })
     }
 
     return NextResponse.json(
-      { error: 'Either lead or leads array must be provided in request body.' },
+      { error: 'Either lead or leads array must be provided.' },
       { status: 400 }
     )
   } catch (error) {

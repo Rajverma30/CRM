@@ -7,11 +7,7 @@ import path from 'path'
  * This guarantees it works IMMEDIATELY even if 'next dev' hasn't been restarted!
  */
 export function getGeminiApiKey(): string {
-  // 1. Check runtime environment variables
-  const envKey = (process.env.GEMINI_API_KEY || process.env.AI_API_KEY || '').trim()
-  if (envKey) return envKey
-
-  // 2. Read directly from disk as a foolproof fallback
+  // 1. Prioritize project files (.env.local, then .env)
   try {
     const cwd = process.cwd()
     const candidates = ['.env.local', '.env']
@@ -33,6 +29,10 @@ export function getGeminiApiKey(): string {
   } catch (err) {
     console.warn('Could not read env file from disk:', err)
   }
+
+  // 2. Fallback to process.env
+  const envKey = (process.env.GEMINI_API_KEY || process.env.AI_API_KEY || '').trim()
+  if (envKey) return envKey
 
   return ''
 }

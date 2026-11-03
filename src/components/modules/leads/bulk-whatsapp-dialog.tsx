@@ -27,15 +27,14 @@ import {
   Globe,
   SkipForward,
   CheckCircle2,
-  ListOrdered,
   RefreshCw,
+  AlertCircle,
 } from 'lucide-react'
 import {
   cleanWhatsAppNumber,
   getWhatsAppUrl,
   DEFAULT_SENDER_NUMBER,
   LeadPitchInfo,
-  generateSmartWhatsAppMessage,
 } from '@/lib/whatsapp/utils'
 import { useUpdateLead } from '@/lib/queries/use-leads'
 import { toast } from 'sonner'
@@ -72,6 +71,7 @@ export function BulkWhatsAppDialog({
   const [isGeneratingAll, setIsGeneratingAll] = useState(false)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [copied, setCopied] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   // Filter leads with phone numbers
   const validLeads = useMemo(() => {
@@ -83,73 +83,28 @@ export function BulkWhatsAppDialog({
     return validLeads.map(lead => ({
       lead,
       phone: lead.phone || '',
-      message: generateSmartWhatsAppMessage(lead, {
-        focus: !lead.website ? 'website' : 'google_maps',
-        language: 'hinglish',
-        senderNumber: DEFAULT_SENDER_NUMBER,
-      }),
+      message: '',
       state: 'pending',
       aiGenerated: false,
     }))
   })
 
-  // Whenever valid leads change or dialog opens with new leads, reset queue & auto-generate with AI
+  // Whenever valid leads change or dialog opens with new leads, reset queue & auto-generate with Gemini
   useEffect(() => {
     if (open && validLeads.length > 0) {
       const initialItems: QueueItem[] = validLeads.map(lead => ({
         lead,
         phone: lead.phone || '',
-        message: generateSmartWhatsAppMessage(lead, {
-          focus: !lead.website ? 'website' : 'google_maps',
-          language,
-          senderNumber,
-        }),
+        message: '',
         state: 'pending',
         aiGenerated: false,
       }))
       setQueue(initialItems)
       setCurrentIndex(0)
+      setErrorMsg(null)
 
       // Auto-trigger Gemini batch generation
-      setIsGeneratingAll(true)
-      fetch('/api/ai/whatsapp-message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leads: initialItems.map(q => q.lead),
-          focus,
-          language,
-          senderNumber,
-        }),
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.messages && Array.isArray(data.messages)) {
-            const msgMap = new Map<string, string>()
-            data.messages.forEach((m: any) => {
-              if (m.id && m.message) msgMap.set(String(m.id), m.message)
-              if (m.business_name && m.message) msgMap.set(String(m.business_name), m.message)
-            })
-            setQueue(prev =>
-              prev.map(item => {
-                const aiMsg =
-                  msgMap.get(item.lead.id || '') ||
-                  msgMap.get(item.lead.business_name || '')
-                return {
-                  ...item,
-                  message: aiMsg || item.message,
-                  aiGenerated: Boolean(data.aiGenerated),
-                }
-              })
-            )
-          }
-        })
-        .catch(err => {
-          console.error('Auto batch generation failed:', err)
-        })
-        .finally(() => {
-          setIsGeneratingAll(false)
-        })
+      handleGenerateAll(initialItems)
     }
   }, [open, validLeads, language, senderNumber, focus])
 
@@ -157,27 +112,28 @@ export function BulkWhatsAppDialog({
   const sentCount = queue.filter(q => q.state === 'sent').length
   const totalCount = queue.length
 
-  // Generate All with Gemini AI
-  async function handleGenerateAll() {
-    if (queue.length === 0) return
+  // Generate All with Gemini AI strictly
+  async function handleGenerateAll(itemsToProcess = queue) {
+    if (itemsToProcess.length === 0) return
     setIsGeneratingAll(true)
+    setErrorMsg(null)
     try {
       const response = await fetch('/api/ai/whatsapp-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          leads: queue.map(q => q.lead),
+          leads: itemsToProcess.map(q => q.lead),
           focus,
           language,
           senderNumber,
         }),
       })
 
-      if (!response.ok) {
-        throw new Error('AI generation failed')
+      const data = await response.json()
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Gemini API batch generation failed')
       }
 
-      const data = await response.json()
       if (data.messages && Array.isArray(data.messages)) {
         const msgMap = new Map<string, string>()
         data.messages.forEach((m: any) => {
@@ -197,10 +153,13 @@ export function BulkWhatsAppDialog({
             }
           })
         )
-        toast.success(`Generated personalized pitches for ${queue.length} leads!`)
+        toast.success(`Generated personalized Gemini pitches for ${itemsToProcess.length} leads!`)
       }
-    } catch (err) {
-      toast.error('AI generation had an issue. Using smart templates.')
+    } catch (err: any) {
+      const msg = err.message || 'Gemini generation failed'
+      console.error('Bulk Gemini generation failed:', msg)
+      setErrorMsg(msg)
+      toast.error(msg)
     } finally {
       setIsGeneratingAll(false)
     }
@@ -221,6 +180,11 @@ export function BulkWhatsAppDialog({
     const cleanNumber = cleanWhatsAppNumber(currentItem.phone)
     if (!cleanNumber) {
       toast.error('Invalid phone number for this lead.')
+      return
+    }
+
+    if (!currentItem.message) {
+      toast.error('Please generate or enter a message first.')
       return
     }
 
@@ -265,7 +229,7 @@ export function BulkWhatsAppDialog({
   }
 
   function handleCopyCurrent() {
-    if (!currentItem) return
+    if (!currentItem || !currentItem.message) return
     navigator.clipboard.writeText(currentItem.message)
     setCopied(true)
     toast.success('Message copied to clipboard!')
@@ -310,7 +274,7 @@ export function BulkWhatsAppDialog({
               <div>
                 <DialogTitle className="text-lg">Bulk WhatsApp Outreach</DialogTitle>
                 <DialogDescription className="text-xs">
-                  Dispatch personalized pitches one-by-one from <span className="font-semibold text-emerald-600 font-mono">+{senderNumber}</span>
+                  Powered by <span className="font-semibold text-emerald-600 font-mono">Google Gemini API</span> · Sender: <span className="font-mono text-foreground font-semibold">+{senderNumber}</span>
                 </DialogDescription>
               </div>
             </div>
@@ -369,15 +333,24 @@ export function BulkWhatsAppDialog({
                 size="sm"
                 variant="outline"
                 disabled={isGeneratingAll}
-                onClick={handleGenerateAll}
+                onClick={() => handleGenerateAll()}
                 className="h-8 w-full gap-1.5 text-xs text-emerald-600 border-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
               >
                 <Sparkles className={`h-3.5 w-3.5 ${isGeneratingAll ? 'animate-spin' : ''}`} />
-                {isGeneratingAll ? 'Generating...' : 'AI Generate All'}
+                {isGeneratingAll ? 'Gemini Generating...' : 'Regenerate All (Gemini)'}
               </Button>
             </div>
           </div>
         </div>
+
+        {errorMsg && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2.5 text-xs text-destructive flex items-center justify-between">
+            <span>{errorMsg}</span>
+            <Button size="sm" variant="ghost" onClick={() => handleGenerateAll()} className="h-6 px-2 text-xs">
+              Retry
+            </Button>
+          </div>
+        )}
 
         {/* Queue Progress Bar */}
         <div className="space-y-1">
@@ -431,12 +404,21 @@ export function BulkWhatsAppDialog({
               <span>Message for {currentLead.business_name}:</span>
               <span>{currentItem.message.length} chars</span>
             </div>
-            <Textarea
-              value={currentItem.message}
-              onChange={e => updateCurrentMessage(e.target.value)}
-              rows={7}
-              className="text-xs leading-relaxed font-sans"
-            />
+
+            {isGeneratingAll ? (
+              <div className="h-32 flex flex-col items-center justify-center rounded-md border border-dashed bg-muted/30 text-xs text-muted-foreground gap-2">
+                <Sparkles className="h-5 w-5 animate-spin text-emerald-500" />
+                <span className="font-medium text-foreground">Gemini AI is crafting unique messages for all leads...</span>
+              </div>
+            ) : (
+              <Textarea
+                value={currentItem.message}
+                onChange={e => updateCurrentMessage(e.target.value)}
+                rows={7}
+                placeholder="Click Regenerate All (Gemini) or wait for generation..."
+                className="text-xs leading-relaxed font-sans"
+              />
+            )}
           </div>
 
           {/* Step Actions */}
@@ -465,6 +447,7 @@ export function BulkWhatsAppDialog({
               <Button
                 size="sm"
                 variant="ghost"
+                disabled={!currentItem.message}
                 onClick={handleCopyCurrent}
                 className="h-8 text-xs gap-1"
               >
@@ -474,8 +457,9 @@ export function BulkWhatsAppDialog({
 
               <Button
                 size="sm"
+                disabled={!currentItem.message || isGeneratingAll}
                 onClick={handleSendCurrent}
-                className="h-8 gap-1.5 bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-medium shadow-sm"
+                className="h-8 gap-1.5 bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-medium shadow-sm disabled:opacity-50"
               >
                 <Send className="h-3.5 w-3.5" />
                 Send & Next
@@ -524,4 +508,3 @@ export function BulkWhatsAppDialog({
     </Dialog>
   )
 }
-
