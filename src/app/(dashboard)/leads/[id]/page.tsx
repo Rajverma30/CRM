@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { ArrowLeft, Pencil, Trash2, ArrowRightLeft, AlertTriangle, MessageSquare } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, ArrowRightLeft, AlertTriangle, MessageSquare, Target } from 'lucide-react'
 import { formatDate, formatCurrency, capitalize, getInitials } from '@/lib/utils'
 import { LeadForm } from '@/components/modules/leads/lead-form'
 import { ConvertLeadDialog } from '@/components/modules/leads/convert-lead-dialog'
@@ -29,6 +29,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [convertOpen, setConvertOpen] = useState(false)
   const [whatsappOpen, setWhatsappOpen] = useState(false)
+  const [initialTab, setInitialTab] = useState<'message' | 'strategy'>('message')
 
   if (!isAdmin) {
     return <EmptyState icon={AlertTriangle} title="Access Denied" description="Only admins can view lead details." />
@@ -54,10 +55,23 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            className="border-indigo-300 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+            onClick={() => {
+              setInitialTab('strategy')
+              setWhatsappOpen(true)
+            }}
+          >
+            <Target className="mr-2 h-4 w-4 text-indigo-500" /> How to Grab (Strategy)
+          </Button>
           {lead.phone && (
             <Button
               className="bg-[#25D366] hover:bg-[#20ba59] text-white"
-              onClick={() => setWhatsappOpen(true)}
+              onClick={() => {
+                setInitialTab('message')
+                setWhatsappOpen(true)
+              }}
             >
               <MessageSquare className="mr-2 h-4 w-4" /> Send WhatsApp
             </Button>
@@ -227,6 +241,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         open={whatsappOpen}
         onOpenChange={setWhatsappOpen}
         lead={lead}
+        initialTab={initialTab}
       />
     </div>
   )

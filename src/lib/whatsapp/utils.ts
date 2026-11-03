@@ -10,6 +10,7 @@ export interface LeadPitchInfo {
   reviews?: number | null
   city?: string | null
   address?: string | null
+  google_maps_url?: string | null
 }
 
 export interface PitchOptions {

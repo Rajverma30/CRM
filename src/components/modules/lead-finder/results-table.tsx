@@ -3,12 +3,13 @@
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { MessageSquare } from 'lucide-react'
+import { MessageSquare, Target } from 'lucide-react'
 import type { BusinessLead } from '@/lib/lead-finder/types'
 
 interface ResultsTableProps {
   businesses: BusinessLead[]
   onWhatsAppClick?: (biz: BusinessLead) => void
+  onStrategyClick?: (biz: BusinessLead) => void
 }
 
 function ScoreBadge({ score }: { score: number }) {
@@ -23,7 +24,11 @@ function CellValue({ value }: { value: string | number | null | undefined }) {
   return <>{value}</>
 }
 
-export function LeadFinderResultsTable({ businesses, onWhatsAppClick }: ResultsTableProps) {
+export function LeadFinderResultsTable({
+  businesses,
+  onWhatsAppClick,
+  onStrategyClick,
+}: ResultsTableProps) {
   if (!businesses.length) return null
 
   return (
@@ -42,7 +47,7 @@ export function LeadFinderResultsTable({ businesses, onWhatsAppClick }: ResultsT
                 'Address',
                 'Google Maps',
                 'Lead Score',
-                'WhatsApp',
+                'Actions',
               ].map(heading => (
                 <th
                   key={heading}
@@ -117,19 +122,28 @@ export function LeadFinderResultsTable({ businesses, onWhatsAppClick }: ResultsT
                   <ScoreBadge score={biz.lead_score} />
                 </td>
                 <td className="whitespace-nowrap px-4 py-3">
-                  {(biz.phone || biz.international_phone) ? (
+                  <div className="flex items-center gap-1">
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-7 px-2 text-xs text-[#25D366] hover:text-[#20ba59] hover:bg-emerald-50 dark:hover:bg-emerald-950/40 font-medium"
-                      onClick={() => onWhatsAppClick?.(biz)}
-                      title="Send WhatsApp Pitch"
+                      className="h-7 px-2 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 font-medium"
+                      onClick={() => onStrategyClick?.(biz)}
+                      title="How to Grab this Lead (Strategy)"
                     >
-                      <MessageSquare className="h-3.5 w-3.5 mr-1" /> Send
+                      <Target className="h-3.5 w-3.5 mr-1 text-indigo-500" /> Strategy
                     </Button>
-                  ) : (
-                    <span className="text-muted-foreground text-xs">—</span>
-                  )}
+                    {(biz.phone || biz.international_phone) ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs text-[#25D366] hover:text-[#20ba59] hover:bg-emerald-50 dark:hover:bg-emerald-950/40 font-medium"
+                        onClick={() => onWhatsAppClick?.(biz)}
+                        title="Send WhatsApp Pitch"
+                      >
+                        <MessageSquare className="h-3.5 w-3.5 mr-1" /> WhatsApp
+                      </Button>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))}

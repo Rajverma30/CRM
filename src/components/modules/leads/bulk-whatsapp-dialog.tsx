@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -94,21 +94,24 @@ export function BulkWhatsAppDialog({
   })
 
   // Whenever valid leads change or dialog opens with new leads, reset queue
-  useState(() => {
-    setQueue(
-      validLeads.map(lead => ({
-        lead,
-        phone: lead.phone || '',
-        message: generateSmartWhatsAppMessage(lead, {
-          focus: !lead.website ? 'website' : 'google_maps',
-          language,
-          senderNumber,
-        }),
-        state: 'pending',
-        aiGenerated: false,
-      }))
-    )
-  })
+  useEffect(() => {
+    if (open && validLeads.length > 0) {
+      setQueue(
+        validLeads.map(lead => ({
+          lead,
+          phone: lead.phone || '',
+          message: generateSmartWhatsAppMessage(lead, {
+            focus: !lead.website ? 'website' : 'google_maps',
+            language,
+            senderNumber,
+          }),
+          state: 'pending',
+          aiGenerated: false,
+        }))
+      )
+      setCurrentIndex(0)
+    }
+  }, [open, validLeads, language, senderNumber])
 
   const currentItem = queue[currentIndex]
   const sentCount = queue.filter(q => q.state === 'sent').length

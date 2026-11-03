@@ -15,14 +15,13 @@ interface GenerateRequest {
   senderNumber?: string
 }
 
-async function callGemini(apiKey: string, prompt: string): Promise<string> {
+async function callGemini(apiKey: string, prompt: string): Promise<{ text: string; model: string }> {
+  // Use gemini-3.5-flash-lite first (fastest, 1-2 sec response), followed by flash
   const models = [
-    'gemini-3.5-flash',
     'gemini-3.5-flash-lite',
+    'gemini-3.5-flash',
     'gemini-3.8-flash',
     'gemini-flash-latest',
-    'gemini-2.5-flash',
-    'gemini-1.5-flash',
   ]
   let lastError: Error | null = null
 
@@ -43,7 +42,7 @@ async function callGemini(apiKey: string, prompt: string): Promise<string> {
           ],
           generationConfig: {
             temperature: 0.7,
-            maxOutputTokens: 2048,
+            maxOutputTokens: 1024,
           },
         }),
       })
@@ -56,10 +55,10 @@ async function callGemini(apiKey: string, prompt: string): Promise<string> {
 
       const data = await response.json()
       const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
-      if (text) return text.trim()
+      if (text) return { text: text.trim(), model }
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))
-      // Continue to next model if this one failed
+      // Continue to next model
     }
   }
 
@@ -70,7 +69,8 @@ export async function POST(request: NextRequest) {
   try {
     const body: GenerateRequest = await request.json()
     const { lead, leads, focus = 'website', language = 'hinglish', customPrompt, senderNumber } = body
-    const geminiKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY
+    const rawKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY || ''
+    const geminiKey = rawKey.trim()
     const sender = senderNumber || DEFAULT_SENDER_NUMBER
 
     const pitchOptions: PitchOptions = {
@@ -83,56 +83,58 @@ export async function POST(request: NextRequest) {
     if (lead) {
       if (geminiKey) {
         try {
-          const prompt = `You are a professional B2B outreach specialist for Vraizen Tech (a high-growth digital agency that builds modern websites, Google Maps ranking/SEO, and CRM automation for local businesses).
-Our sender phone number is: ${sender}.
+          const prompt = `You are an elite B2B sales copywriter for Vraizen Tech (a high-growth digital marketing & software agency).
+Our sender WhatsApp number: ${sender}.
 
-Write a personalized, friendly, and high-converting WhatsApp outreach message for this business:
+Write a personalized, polite, and high-converting WhatsApp outreach message for this business:
 Business Name: ${lead.business_name || 'Business'}
 Contact Person: ${lead.contact_person || 'Owner'}
 Category/Industry: ${lead.category || lead.industry || 'Local Business'}
-Website: ${lead.website ? lead.website : 'No website currently'}
-Rating: ${lead.rating ? `${lead.rating} stars (${lead.reviews ?? 0} reviews)` : 'Not specified'}
+Website: ${lead.website ? lead.website : 'No website currently (Important opportunity)'}
+Google Rating: ${lead.rating ? `${lead.rating} stars (${lead.reviews ?? 0} reviews)` : 'Not specified'}
 Location: ${lead.city || lead.address || 'Local area'}
 
-Pitch Focus: ${focus} (e.g. highlighting why they need a website / Google Maps growth / tech automation)
-Language: ${language} (if hinglish: natural, conversational Indian Hinglish with appropriate emojis like 👋, 🚀, ⭐; if hindi: professional polite Hindi; if english: clean modern English).
-${customPrompt ? `Additional instructions from user: ${customPrompt}` : ''}
+Pitch Focus: ${focus}
+Language: ${language} (if hinglish: friendly, respectful, modern conversational Indian Hinglish with appropriate emojis; if hindi: professional polite Hindi; if english: clean modern English).
+${customPrompt ? `Special instructions: ${customPrompt}` : ''}
 
 CRITICAL RULES:
-1. Keep the message concise (3-5 short paragraphs/bullet points max, easy to read on a mobile phone screen).
-2. DO NOT make it sound like spam. Address the owner politely, mention their specific business name (${lead.business_name || 'your business'}), and compliment their work.
-3. If they don't have a website, explain how having an online presence/booking site will bring them 2x more local clients.
-4. End with a polite, non-pushy Call To Action (e.g., "Kya hum is week 5-minute call ya WhatsApp par discuss kar sakte hain ek free demo ke liye?").
-5. Sign off with:
+1. Address the business owner with respect. Mention their business name (*${lead.business_name || 'your business'}*) in the opening.
+2. Highlight a clear value proposition:
+   - If no website: explain how 70%+ local customers search online first and a modern website + Google presence will double their inquiries.
+   - If website exists: explain how local SEO/Google Maps ranking & WhatsApp automation will bring high-ticket direct leads.
+3. Keep it crisp, readable on phone screens (3-4 short paragraphs max, not a giant wall of text).
+4. End with a polite, low-pressure Call To Action (e.g. "Kya hum is week 5-minute call ya WhatsApp par discuss kar sakte hain ek free demo ke liye?").
+5. Sign off:
 Regards,
 Vraizen Tech
 WhatsApp: ${sender}
-6. Return ONLY the final message text. Do NOT include markdown code blocks, explanations, or quotes around it.`
+6. Output ONLY the message text without quotes or markdown codeblocks.`
 
-          const generatedMessage = await callGemini(geminiKey, prompt)
+          const { text: generatedMessage, model } = await callGemini(geminiKey, prompt)
           return NextResponse.json({
             message: generatedMessage,
             aiGenerated: true,
             provider: 'gemini',
+            model,
           })
         } catch (geminiError) {
-          console.warn('Gemini generation failed, falling back to smart template:', geminiError)
-          // Fall back to template seamlessly
+          console.error('Gemini generation failed:', geminiError)
           const fallback = generateSmartWhatsAppMessage(lead, pitchOptions)
           return NextResponse.json({
             message: fallback,
             aiGenerated: false,
-            fallbackReason: geminiError instanceof Error ? geminiError.message : 'Gemini call failed',
+            fallbackReason: geminiError instanceof Error ? geminiError.message : 'Gemini error',
           })
         }
       }
 
-      // No Gemini key configured -> use smart template
+      // No key configured
       const fallback = generateSmartWhatsAppMessage(lead, pitchOptions)
       return NextResponse.json({
         message: fallback,
         aiGenerated: false,
-        note: 'Generated using smart templates. Add GEMINI_API_KEY in .env for custom AI generation.',
+        note: 'GEMINI_API_KEY is not configured in .env',
       })
     }
 
@@ -146,7 +148,7 @@ Pitch Focus: ${focus}.
 Language: ${language}.
 ${customPrompt ? `Additional note: ${customPrompt}` : ''}
 
-Generate personalized WhatsApp messages for each of the following leads.
+Generate personalized WhatsApp outreach messages for each of these leads.
 Return a valid JSON object strictly matching this schema:
 {
   "messages": [
@@ -158,13 +160,12 @@ Return a valid JSON object strictly matching this schema:
   ]
 }
 
-Guidelines for each message:
-- 3 to 5 short paragraphs with emojis.
-- Personalized to their business name and industry.
+Guidelines:
+- Tailored to each business name and category.
 - Mention our agency Vraizen Tech and sender number ${sender}.
-- Clean, polite CTA.
+- Polite, high-converting, 3-4 short paragraphs with emojis.
 
-Leads list:
+Leads:
 ${JSON.stringify(
   leads.map(l => ({
     id: l.id || l.business_name,
@@ -176,8 +177,7 @@ ${JSON.stringify(
   }))
 )}`
 
-          const rawJson = await callGemini(geminiKey, prompt)
-          // Clean JSON response in case model wrapped it in markdown
+          const { text: rawJson, model } = await callGemini(geminiKey, prompt)
           const cleanedJson = rawJson.replace(/```json/g, '').replace(/```/g, '').trim()
           const parsed = JSON.parse(cleanedJson)
 
@@ -185,9 +185,10 @@ ${JSON.stringify(
             messages: parsed.messages || [],
             aiGenerated: true,
             provider: 'gemini',
+            model,
           })
         } catch (err) {
-          console.warn('Bulk Gemini generation failed, falling back to smart templates:', err)
+          console.error('Bulk Gemini generation failed:', err)
         }
       }
 
@@ -214,4 +215,3 @@ ${JSON.stringify(
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
-

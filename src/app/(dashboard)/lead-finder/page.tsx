@@ -48,6 +48,7 @@ export default function LeadFinderPage() {
   const [hasSearched, setHasSearched] = useState(Boolean(cachedSearch))
   const [whatsappLead, setWhatsappLead] = useState<WhatsAppDialogLead | null>(null)
   const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false)
+  const [initialTab, setInitialTab] = useState<'message' | 'strategy'>('message')
   const [bulkWhatsappOpen, setBulkWhatsappOpen] = useState(false)
 
   const runSearch = useCallback(async (params: SearchFormState) => {
@@ -216,6 +217,20 @@ export default function LeadFinderPage() {
                     reviews: biz.review_count,
                     address: biz.address,
                   })
+                  setInitialTab('message')
+                  setWhatsappDialogOpen(true)
+                }}
+                onStrategyClick={(biz) => {
+                  setWhatsappLead({
+                    business_name: biz.name,
+                    phone: biz.phone || biz.international_phone,
+                    category: biz.category,
+                    website: biz.website,
+                    rating: biz.rating,
+                    reviews: biz.review_count,
+                    address: biz.address,
+                  })
+                  setInitialTab('strategy')
                   setWhatsappDialogOpen(true)
                 }}
               />
@@ -246,6 +261,7 @@ export default function LeadFinderPage() {
         open={whatsappDialogOpen}
         onOpenChange={setWhatsappDialogOpen}
         lead={whatsappLead}
+        initialTab={initialTab}
       />
 
       <BulkWhatsAppDialog

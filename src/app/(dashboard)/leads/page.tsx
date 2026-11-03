@@ -109,6 +109,7 @@ export default function LeadsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [whatsappLead, setWhatsappLead] = useState<WhatsAppDialogLead | null>(null)
   const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false)
+  const [initialTab, setInitialTab] = useState<'message' | 'strategy'>('message')
   const [bulkWhatsappOpen, setBulkWhatsappOpen] = useState(false)
 
   const { data: leads = [], isLoading } = useLeads({
@@ -191,10 +192,20 @@ export default function LeadsPage() {
               <DropdownMenuItem onClick={() => router.push(`/leads/${row.id}`)}>
                 <Eye className="mr-2 h-4 w-4" /> View
               </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  setWhatsappLead(row)
+                  setInitialTab('strategy')
+                  setWhatsappDialogOpen(true)
+                }}
+              >
+                <Target className="mr-2 h-4 w-4 text-indigo-500" /> Approach Strategy (AI)
+              </DropdownMenuItem>
               {row.phone && (
                 <DropdownMenuItem
                   onClick={() => {
                     setWhatsappLead(row)
+                    setInitialTab('message')
                     setWhatsappDialogOpen(true)
                   }}
                 >
@@ -410,6 +421,7 @@ export default function LeadsPage() {
         open={whatsappDialogOpen}
         onOpenChange={setWhatsappDialogOpen}
         lead={whatsappLead}
+        initialTab={initialTab}
       />
 
       <BulkWhatsAppDialog
