@@ -3,36 +3,50 @@ import path from 'path'
 
 /**
  * Robust helper to get the Gemini API Key.
- * Checks process.env first, then directly reads from .env.local and .env on disk.
- * This guarantees it works IMMEDIATELY even if 'next dev' hasn't been restarted!
+ * Checks process.env first (loaded automatically by Next.js from .env.local).
+ * Also performs multi-path scanning of .env.local and .env on disk as backup.
  */
 export function getGeminiApiKey(): string {
-  // 1. Prioritize project files (.env.local, then .env)
+  // 1. Check process.env (Next.js automatically loads .env.local)
+  const envKey = (process.env.GEMINI_API_KEY || process.env.AI_API_KEY || '').trim()
+  if (envKey && !envKey.startsWith('#')) return envKey
+
+  // 2. Read dynamically from .env.local and .env from disk
   try {
     const cwd = process.cwd()
-    const candidates = ['.env.local', '.env']
-    for (const filename of candidates) {
-      const fullPath = path.resolve(/*turbopackIgnore: true*/ cwd, filename)
-      if (fs.existsSync(fullPath)) {
-        const content = fs.readFileSync(fullPath, 'utf8')
-        const match =
-          content.match(/^GEMINI_API_KEY=(.+)$/m) ||
-          content.match(/^AI_API_KEY=(.+)$/m)
-        if (match && match[1]) {
-          const key = match[1].trim().replace(/^["']|["']$/g, '')
-          if (key && !key.startsWith('#')) {
-            return key
+    const potentialDirs = [
+      cwd,
+      path.resolve(cwd, '..'),
+      path.resolve(__dirname, '../../..'),
+      path.resolve(__dirname, '../../../..'),
+      'S:/Machine learning/Startup/CRM',
+      's:/Machine learning/Startup/CRM',
+    ]
+
+    for (const dir of potentialDirs) {
+      for (const filename of ['.env.local', '.env']) {
+        try {
+          const fullPath = path.resolve(dir, filename)
+          if (fs.existsSync(/*turbopackIgnore: true*/ fullPath)) {
+            const content = fs.readFileSync(/*turbopackIgnore: true*/ fullPath, 'utf8')
+            const match =
+              content.match(/^\s*GEMINI_API_KEY\s*=\s*["']?([^"'\r\n]+)["']?/m) ||
+              content.match(/^\s*AI_API_KEY\s*=\s*["']?([^"'\r\n]+)["']?/m)
+            if (match && match[1]) {
+              const key = match[1].trim()
+              if (key && !key.startsWith('#')) {
+                return key
+              }
+            }
           }
+        } catch {
+          // ignore directory access error and continue
         }
       }
     }
   } catch (err) {
     console.warn('Could not read env file from disk:', err)
   }
-
-  // 2. Fallback to process.env
-  const envKey = (process.env.GEMINI_API_KEY || process.env.AI_API_KEY || '').trim()
-  if (envKey) return envKey
 
   return ''
 }
